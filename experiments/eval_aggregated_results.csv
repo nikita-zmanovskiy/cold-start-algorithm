@@ -1,0 +1,10 @@
+result_file,n_users,hr_mean,hr_std,ndcg_mean,ndcg_std
+demo_rankings.json,20,0.0,0.0,0.0,0.0
+demo_sanity.json,3,0.0,0.0,0.0,0.0
+last_run_metadata.json,10,0.0,0.0,0.0,0.0
+run_seed_123_1770311171.json,2,0.0,0.0,0.0,0.0
+run_seed_123_1770312619.json,2,0.0,0.0,0.0,0.0
+run_seed_42_1770311079.json,2,0.0,0.0,0.0,0.0
+run_seed_42_1770312535.json,2,0.0,0.0,0.0,0.0
+run_seed_7_1770311115.json,2,0.0,0.0,0.0,0.0
+run_seed_7_1770312576.json,2,0.0,0.0,0.0,0.0

@@ -1,0 +1,65 @@
+{
+  "demo_rankings.json": {
+    "n_users": 20,
+    "hr_mean": 0.0,
+    "hr_std": 0.0,
+    "ndcg_mean": 0.0,
+    "ndcg_std": 0.0
+  },
+  "demo_sanity.json": {
+    "n_users": 3,
+    "hr_mean": 0.0,
+    "hr_std": 0.0,
+    "ndcg_mean": 0.0,
+    "ndcg_std": 0.0
+  },
+  "last_run_metadata.json": {
+    "n_users": 10,
+    "hr_mean": 0.0,
+    "hr_std": 0.0,
+    "ndcg_mean": 0.0,
+    "ndcg_std": 0.0
+  },
+  "run_seed_123_1770311171.json": {
+    "n_users": 2,
+    "hr_mean": 0.0,
+    "hr_std": 0.0,
+    "ndcg_mean": 0.0,
+    "ndcg_std": 0.0
+  },
+  "run_seed_123_1770312619.json": {
+    "n_users": 2,
+    "hr_mean": 0.0,
+    "hr_std": 0.0,
+    "ndcg_mean": 0.0,
+    "ndcg_std": 0.0
+  },
+  "run_seed_42_1770311079.json": {
+    "n_users": 2,
+    "hr_mean": 0.0,
+    "hr_std": 0.0,
+    "ndcg_mean": 0.0,
+    "ndcg_std": 0.0
+  },
+  "run_seed_42_1770312535.json": {
+    "n_users": 2,
+    "hr_mean": 0.0,
+    "hr_std": 0.0,
+    "ndcg_mean": 0.0,
+    "ndcg_std": 0.0
+  },
+  "run_seed_7_1770311115.json": {
+    "n_users": 2,
+    "hr_mean": 0.0,
+    "hr_std": 0.0,
+    "ndcg_mean": 0.0,
+    "ndcg_std": 0.0
+  },
+  "run_seed_7_1770312576.json": {
+    "n_users": 2,
+    "hr_mean": 0.0,
+    "hr_std": 0.0,
+    "ndcg_mean": 0.0,
+    "ndcg_std": 0.0
+  }
+}

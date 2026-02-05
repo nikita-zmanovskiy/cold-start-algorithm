@@ -1,0 +1,1048 @@
+{
+  "results": {
+    "0": [
+      {
+        "item_id": "181415",
+        "score": -9.64970588684082,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "106684",
+        "score": -9.776985168457031,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "167852",
+        "score": -10.064009666442871,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "135881",
+        "score": -10.329449653625488,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "134745",
+        "score": -10.41781234741211,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "167572",
+        "score": -10.506537437438965,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "40226",
+        "score": -10.555696487426758,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "132366",
+        "score": -10.664731979370117,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "164151",
+        "score": -10.686948776245117,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -10.714012145996094,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "1": [
+      {
+        "item_id": "176989",
+        "score": -10.49316692352295,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "2115",
+        "score": -10.880548477172852,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "172785",
+        "score": -10.90909194946289,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "40815",
+        "score": -10.912654876708984,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "149830",
+        "score": -10.968818664550781,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "5816",
+        "score": -10.988872528076172,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "121598",
+        "score": -11.003700256347656,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "1198",
+        "score": -11.040136337280273,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "98335",
+        "score": -11.044264793395996,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "158392",
+        "score": -11.046828269958496,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "2": [
+      {
+        "item_id": "46808",
+        "score": -7.390629768371582,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "149588",
+        "score": -7.637974739074707,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "151913",
+        "score": -8.727718353271484,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "130526",
+        "score": -9.734291076660156,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "81417",
+        "score": -9.871028900146484,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "4388",
+        "score": -9.888751029968262,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "144702",
+        "score": -9.933759689331055,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "48591",
+        "score": -9.957164764404297,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "114242",
+        "score": -9.977712631225586,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "443",
+        "score": -9.98471736907959,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "3": [
+      {
+        "item_id": "161240",
+        "score": -6.988431930541992,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "6888",
+        "score": -8.259147644042969,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -8.387596130371094,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "171545",
+        "score": -8.517770767211914,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "141166",
+        "score": -9.097411155700684,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "157352",
+        "score": -9.238221168518066,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "66066",
+        "score": -9.34542179107666,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "163472",
+        "score": -9.354488372802734,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "53121",
+        "score": -9.47764778137207,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "90469",
+        "score": -9.585144996643066,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "4": [
+      {
+        "item_id": "161240",
+        "score": -7.0475616455078125,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "95932",
+        "score": -8.903877258300781,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "34150",
+        "score": -9.128864288330078,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "53464",
+        "score": -9.172779083251953,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "143351",
+        "score": -9.20530891418457,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "165531",
+        "score": -9.346832275390625,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "122902",
+        "score": -9.452728271484375,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "122876",
+        "score": -9.578401565551758,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "180581",
+        "score": -10.178627014160156,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -10.383505821228027,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "5": [
+      {
+        "item_id": "181415",
+        "score": -9.64970588684082,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "106684",
+        "score": -9.776985168457031,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "167852",
+        "score": -10.064009666442871,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "135881",
+        "score": -10.329449653625488,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "134745",
+        "score": -10.41781234741211,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "167572",
+        "score": -10.506537437438965,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "40226",
+        "score": -10.555696487426758,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "132366",
+        "score": -10.664731979370117,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "164151",
+        "score": -10.686948776245117,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -10.714012145996094,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "6": [
+      {
+        "item_id": "176989",
+        "score": -10.49316692352295,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "2115",
+        "score": -10.880548477172852,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "172785",
+        "score": -10.90909194946289,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "40815",
+        "score": -10.912654876708984,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "149830",
+        "score": -10.968818664550781,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "5816",
+        "score": -10.988872528076172,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "121598",
+        "score": -11.003700256347656,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "1198",
+        "score": -11.040136337280273,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "98335",
+        "score": -11.044264793395996,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "158392",
+        "score": -11.046828269958496,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "7": [
+      {
+        "item_id": "46808",
+        "score": -7.390629768371582,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "149588",
+        "score": -7.637974739074707,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "151913",
+        "score": -8.727718353271484,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "130526",
+        "score": -9.734291076660156,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "81417",
+        "score": -9.871028900146484,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "4388",
+        "score": -9.888751029968262,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "144702",
+        "score": -9.933759689331055,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "48591",
+        "score": -9.957164764404297,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "114242",
+        "score": -9.977712631225586,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "443",
+        "score": -9.98471736907959,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "8": [
+      {
+        "item_id": "161240",
+        "score": -6.988431930541992,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "6888",
+        "score": -8.259147644042969,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -8.387596130371094,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "171545",
+        "score": -8.517770767211914,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "141166",
+        "score": -9.097411155700684,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "157352",
+        "score": -9.238221168518066,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "66066",
+        "score": -9.34542179107666,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "163472",
+        "score": -9.354488372802734,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "53121",
+        "score": -9.47764778137207,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "90469",
+        "score": -9.585144996643066,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "9": [
+      {
+        "item_id": "161240",
+        "score": -7.0475616455078125,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "95932",
+        "score": -8.903877258300781,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "34150",
+        "score": -9.128864288330078,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "53464",
+        "score": -9.172779083251953,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "143351",
+        "score": -9.20530891418457,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "165531",
+        "score": -9.346832275390625,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "122902",
+        "score": -9.452728271484375,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "122876",
+        "score": -9.578401565551758,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "180581",
+        "score": -10.178627014160156,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -10.383505821228027,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "10": [
+      {
+        "item_id": "181415",
+        "score": -9.64970588684082,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "106684",
+        "score": -9.776985168457031,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "167852",
+        "score": -10.064009666442871,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "135881",
+        "score": -10.329449653625488,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "134745",
+        "score": -10.41781234741211,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "167572",
+        "score": -10.506537437438965,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "40226",
+        "score": -10.555696487426758,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "132366",
+        "score": -10.664731979370117,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "164151",
+        "score": -10.686948776245117,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -10.714012145996094,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "11": [
+      {
+        "item_id": "176989",
+        "score": -10.49316692352295,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "2115",
+        "score": -10.880548477172852,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "172785",
+        "score": -10.90909194946289,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "40815",
+        "score": -10.912654876708984,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "149830",
+        "score": -10.968818664550781,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "5816",
+        "score": -10.988872528076172,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "121598",
+        "score": -11.003700256347656,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "1198",
+        "score": -11.040136337280273,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "98335",
+        "score": -11.044264793395996,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "158392",
+        "score": -11.046828269958496,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "12": [
+      {
+        "item_id": "46808",
+        "score": -7.390629768371582,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "149588",
+        "score": -7.637974739074707,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "151913",
+        "score": -8.727718353271484,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "130526",
+        "score": -9.734291076660156,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "81417",
+        "score": -9.871028900146484,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "4388",
+        "score": -9.888751029968262,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "144702",
+        "score": -9.933759689331055,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "48591",
+        "score": -9.957164764404297,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "114242",
+        "score": -9.977712631225586,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "443",
+        "score": -9.98471736907959,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "13": [
+      {
+        "item_id": "161240",
+        "score": -6.988431930541992,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "6888",
+        "score": -8.259147644042969,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -8.387596130371094,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "171545",
+        "score": -8.517770767211914,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "141166",
+        "score": -9.097411155700684,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "157352",
+        "score": -9.238221168518066,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "66066",
+        "score": -9.34542179107666,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "163472",
+        "score": -9.354488372802734,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "53121",
+        "score": -9.47764778137207,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "90469",
+        "score": -9.585144996643066,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "14": [
+      {
+        "item_id": "161240",
+        "score": -7.0475616455078125,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "95932",
+        "score": -8.903877258300781,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "34150",
+        "score": -9.128864288330078,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "53464",
+        "score": -9.172779083251953,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "143351",
+        "score": -9.20530891418457,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "165531",
+        "score": -9.346832275390625,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "122902",
+        "score": -9.452728271484375,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "122876",
+        "score": -9.578401565551758,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "180581",
+        "score": -10.178627014160156,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -10.383505821228027,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "15": [
+      {
+        "item_id": "181415",
+        "score": -9.64970588684082,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "106684",
+        "score": -9.776985168457031,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "167852",
+        "score": -10.064009666442871,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "135881",
+        "score": -10.329449653625488,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "134745",
+        "score": -10.41781234741211,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "167572",
+        "score": -10.506537437438965,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "40226",
+        "score": -10.555696487426758,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "132366",
+        "score": -10.664731979370117,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "164151",
+        "score": -10.686948776245117,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -10.714012145996094,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "16": [
+      {
+        "item_id": "176989",
+        "score": -10.49316692352295,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "2115",
+        "score": -10.880548477172852,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "172785",
+        "score": -10.90909194946289,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "40815",
+        "score": -10.912654876708984,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "149830",
+        "score": -10.968818664550781,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "5816",
+        "score": -10.988872528076172,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "121598",
+        "score": -11.003700256347656,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "1198",
+        "score": -11.040136337280273,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "98335",
+        "score": -11.044264793395996,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "158392",
+        "score": -11.046828269958496,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "17": [
+      {
+        "item_id": "46808",
+        "score": -7.390629768371582,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "149588",
+        "score": -7.637974739074707,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "151913",
+        "score": -8.727718353271484,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "130526",
+        "score": -9.734291076660156,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "81417",
+        "score": -9.871028900146484,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "4388",
+        "score": -9.888751029968262,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "144702",
+        "score": -9.933759689331055,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "48591",
+        "score": -9.957164764404297,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "114242",
+        "score": -9.977712631225586,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "443",
+        "score": -9.98471736907959,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "18": [
+      {
+        "item_id": "161240",
+        "score": -6.988431930541992,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "6888",
+        "score": -8.259147644042969,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -8.387596130371094,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "171545",
+        "score": -8.517770767211914,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "141166",
+        "score": -9.097411155700684,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "157352",
+        "score": -9.238221168518066,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "66066",
+        "score": -9.34542179107666,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "163472",
+        "score": -9.354488372802734,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "53121",
+        "score": -9.47764778137207,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "90469",
+        "score": -9.585144996643066,
+        "reason": "CrossEncoder rerank"
+      }
+    ],
+    "19": [
+      {
+        "item_id": "161240",
+        "score": -7.0475616455078125,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "95932",
+        "score": -8.903877258300781,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "34150",
+        "score": -9.128864288330078,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "53464",
+        "score": -9.172779083251953,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "143351",
+        "score": -9.20530891418457,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "165531",
+        "score": -9.346832275390625,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "122902",
+        "score": -9.452728271484375,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "122876",
+        "score": -9.578401565551758,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "180581",
+        "score": -10.178627014160156,
+        "reason": "CrossEncoder rerank"
+      },
+      {
+        "item_id": "176989",
+        "score": -10.383505821228027,
+        "reason": "CrossEncoder rerank"
+      }
+    ]
+  },
+  "meta": {
+    "seed": 7,
+    "elapsed": 41.40207004547119
+  }
+}

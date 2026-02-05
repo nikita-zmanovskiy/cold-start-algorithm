@@ -1,0 +1,11 @@
+{
+  "file": "results\\run_seed_7_1770311115.json",
+  "summary": {
+    "n_users": 2,
+    "hr_mean": 0.0,
+    "hr_std": 0.0,
+    "ndcg_mean": 0.0,
+    "ndcg_std": 0.0
+  },
+  "synthetic_gt": false
+}

@@ -1,0 +1,11 @@
+user,hr@10,ndcg@10,rec_ids
+dataset,0.0,0.0,Serendipity-2018
+n_items,0.0,0.0,49157
+embedding_model,0.0,0.0,sentence-transformers/all-MiniLM-L6-v2
+reranker,0.0,0.0,cross-encoder/ms-marco-MiniLM-L-6-v2
+retrieval_top_k,0.0,0.0,400
+pool_size,0.0,0.0,200
+final_k,0.0,0.0,10
+n_users,0.0,0.0,20
+timestamp,0.0,0.0,1770312619.2912056
+unique_recommended_items,0.0,0.0,46

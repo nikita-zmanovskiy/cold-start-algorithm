@@ -1,0 +1,11 @@
+{
+  "file": "results\\last_run_metadata.json",
+  "summary": {
+    "n_users": 10,
+    "hr_mean": 0.0,
+    "hr_std": 0.0,
+    "ndcg_mean": 0.0,
+    "ndcg_std": 0.0
+  },
+  "synthetic_gt": false
+}
