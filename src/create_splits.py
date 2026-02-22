@@ -11,14 +11,13 @@ from .evaluation_config import (
     COLD_START_SCENARIOS,
     NEW_USER_MAX_TRAIN,
     INTERACTION_BUCKETS,
-    GT_PATH,
-    SPLIT_METADATA_PATH,
-    TEST_CSV_PATH,
-    VAL_CSV_PATH,
+    get_eval_paths,
+    get_default_raw_interactions_csv,
 )
+
 from .utils import logger
 
-TRAINING_CSV_PATH = Path(__file__).resolve().parents[1] / "data" / "serendipity-sac2018" / "training.csv"
+# TRAINING_CSV_PATH = Path(__file__).resolve().parents[1] / "data" / "serendipity-sac2018" / "training.csv"
 
 
 def _bucket_label(n: int) -> str:
@@ -107,11 +106,12 @@ def split_random(
 
 def build_splits(
     interactions_path: Path,
-    out_train: Path = TRAINING_CSV_PATH,
-    out_val: Path = VAL_CSV_PATH,
-    out_test: Path = TEST_CSV_PATH,
-    out_gt: Path = GT_PATH,
-    out_meta: Path = SPLIT_METADATA_PATH,
+    dataset: str = "serendipity",
+    out_train: Path = None,
+    out_val: Path = None,
+    out_test: Path = None,
+    out_gt: Path = None,
+    out_meta: Path = None,
     by_time: Optional[bool] = None,
     ratios: Optional[Tuple[float, float, float]] = None,
     seed: int = 42,
@@ -119,6 +119,21 @@ def build_splits(
     item_col: str = "item_id",
 ) -> Dict[str, Any]:
     rows = load_interactions(interactions_path, user_col=user_col, item_col=item_col)
+    if by_time is None:
+        by_time = (SPLIT_METHOD == "time_based")
+
+    if by_time:
+        has_any_ts = any(_parse_ts(r.get("timestamp")) is not None for r in rows)
+        if not has_any_ts:
+            logger.warning("No usable timestamps found; falling back to random split.")
+            by_time = False
+    paths = get_eval_paths(dataset)
+
+    out_train = Path(out_train) if out_train else paths["train"]
+    out_val = Path(out_val) if out_val else paths["val"]
+    out_test = Path(out_test) if out_test else paths["test"]
+    out_gt = Path(out_gt) if out_gt else paths["gt"]
+    out_meta = Path(out_meta) if out_meta else paths["split_meta"]
     if not rows:
         raise SystemExit(f"No rows loaded from {interactions_path}")
 
@@ -228,7 +243,8 @@ def build_splits(
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser(description="Create standardized train/val/test splits for cold-start evaluation.")
-    p.add_argument("--csv", required=True, help="Path to interactions CSV (user_id, item_id, optional timestamp)")
+    p.add_argument("--dataset", default="serendipity", choices=["serendipity", "taobao"])
+    p.add_argument("--csv", default=None, help="Path to interactions CSV (optional; defaults per dataset)")
     p.add_argument("--by-time", action="store_true", default=True, help="Split by timestamp (default: True)")
     p.add_argument("--random", action="store_true", help="Split randomly instead of by time")
     p.add_argument("--seed", type=int, default=42)
@@ -239,13 +255,21 @@ if __name__ == "__main__":
     p.add_argument("--out-meta", default=None, help="Output path for split_metadata.json")
     p.add_argument("--out-gt", default=None, help="Output path for ground_truth.json")
     args = p.parse_args()
-    out_train = Path(args.out_train) if args.out_train else TRAINING_CSV_PATH
-    out_val = Path(args.out_val) if args.out_val else VAL_CSV_PATH
-    out_test = Path(args.out_test) if args.out_test else TEST_CSV_PATH
-    out_meta = Path(args.out_meta) if args.out_meta else SPLIT_METADATA_PATH
-    out_gt = Path(args.out_gt) if args.out_gt else GT_PATH
+    from .evaluation_config import get_eval_paths, get_default_raw_interactions_csv
+
+    paths = get_eval_paths(args.dataset)
+
+    csv_path = Path(args.csv) if args.csv else get_default_raw_interactions_csv(args.dataset)
+
+    out_train = Path(args.out_train) if args.out_train else paths["train"]
+    out_val = Path(args.out_val) if args.out_val else paths["val"]
+    out_test = Path(args.out_test) if args.out_test else paths["test"]
+    out_meta = Path(args.out_meta) if args.out_meta else paths["split_meta"]
+    out_gt = Path(args.out_gt) if args.out_gt else paths["gt"]
+
     summary = build_splits(
-        Path(args.csv),
+        csv_path,
+        dataset=args.dataset,
         out_train=out_train,
         out_val=out_val,
         out_test=out_test,

@@ -1,51 +1,75 @@
-
 from pathlib import Path
 
+# =========================
+# Global evaluation settings
+# =========================
 N_TEST_USERS = 500
-
 EVAL_SEEDS = [42, 7, 123, 2024, 2025, 0, 13, 999, 1234, 777]
-
 N_BOOTSTRAP = 1000
 
 N_QUICK_TEST_USERS = 50
 N_SANITY_USERS = 5
-
 N_FAST_USERS = 30
-FAST_SEEDS = EVAL_SEEDS[:5]  
+
+FAST_SEEDS = EVAL_SEEDS[:5]
 FAST_POOL_SIZES = [200, 500]
 
 ABLATION_POOL_SIZES = [100, 300, 1000, 5000]
-
 ABLATION_RETRIEVAL_MODES = ["ann", "bm25", "hybrid"]
 
-
-SPLIT_METHOD = "time_based"  
-
-
-SPLIT_RATIOS = (0.7, 0.1, 0.2)  
-
+SPLIT_METHOD = "time_based"  # "time_based" or "random"
+SPLIT_RATIOS = (0.7, 0.1, 0.2)
 
 COLD_START_SCENARIOS = ("new_users", "new_items", "both")
-
-
 NEW_USER_MAX_TRAIN = 0
 
-
 INTERACTION_BUCKETS = [
-    (1, 2),    
-    (3, 5),    
-    (6, 10),   
-    (11, 20),  
-    (21, None) 
+    (1, 2),
+    (3, 5),
+    (6, 10),
+    (11, 20),
+    (21, None),
 ]
 
-
 NEGATIVE_SAMPLING_PROTOCOL = "full_ranking"
-N_NEGATIVES_PER_POSITIVE = 100  
+N_NEGATIVES_PER_POSITIVE = 100
 NEGATIVE_SAMPLING_SEED = 42
 
-GT_PATH = Path(__file__).resolve().parents[1] / "experiments" / "ground_truth.json"
-SPLIT_METADATA_PATH = Path(__file__).resolve().parents[1] / "experiments" / "split_metadata.json"
-TRAINING_CSV_PATH = Path(__file__).resolve().parents[1] / "data" / "serendipity-sac2018" / "training.csv"
-TEST_CSV_PATH = Path(__file__).resolve().parents[1] / "experiments" / "test_interactions.csv"
-VAL_CSV_PATH = Path(__file__).resolve().parents[1] / "experiments" / "val_interactions.csv"
+
+# =========================
+# Dataset-aware paths
+# =========================
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = PROJECT_ROOT / "data"
+PROCESSED_DIR = DATA_DIR / "processed"
+EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
+
+
+def _ds_key(dataset: str) -> str:
+    d = (dataset or "serendipity").lower()
+    return "taobao" if d.startswith("taobao") else "serendipity"
+
+
+def get_eval_paths(dataset: str = "serendipity") -> dict:
+    """
+    Returns dataset-specific paths for splits + GT so datasets never overwrite each other.
+    """
+    ds = _ds_key(dataset)
+    return {
+        "gt": EXPERIMENTS_DIR / f"ground_truth_{ds}.json",
+        "split_meta": EXPERIMENTS_DIR / f"split_metadata_{ds}.json",
+        "train": EXPERIMENTS_DIR / f"training_interactions_{ds}.csv",
+        "val": EXPERIMENTS_DIR / f"val_interactions_{ds}.csv",
+        "test": EXPERIMENTS_DIR / f"test_interactions_{ds}.csv",
+    }
+
+
+def get_default_raw_interactions_csv(dataset: str = "serendipity") -> Path:
+    """
+    Where to read RAW interactions from (before standard split files exist).
+    """
+    ds = _ds_key(dataset)
+    if ds == "taobao":
+        # Produced by preprocess.py
+        return PROCESSED_DIR / "interactions_taobao.csv"
+    return DATA_DIR / "serendipity-sac2018" / "training.csv"

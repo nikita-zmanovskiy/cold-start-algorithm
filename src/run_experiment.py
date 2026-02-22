@@ -108,13 +108,17 @@ def run_experiment(
 
     run_all()
     
-    dataset_key = config.get("dataset", dataset) or "serendipity"
+    dataset_key = (config.get("dataset", dataset) or "serendipity").lower()
+    suffix = "taobao" if dataset_key.startswith("taobao") else "serendipity"
 
+    items_csv = PROCESSED_DIR / f"items_{suffix}.csv"
 
-    if dataset_key.lower().startswith("taobao"):
-        items_csv = PROCESSED_DIR / "items_serendipity.csv"
-    else:
-        items_csv = PROCESSED_DIR / "items_serendipity.csv"
+    # dataset-specific cache files (so serendipity and taobao don't overwrite each other)
+    from .config import EMBEDDINGS_DIR, INDEX_DIR
+
+    embeddings_npy = EMBEDDINGS_DIR / f"item_embeddings_{suffix}.npy"
+    embedding_map  = EMBEDDINGS_DIR / f"id2idx_{suffix}.json"
+    faiss_index_path = INDEX_DIR / f"items_{suffix}.faiss"
     if not items_csv.exists():
         logger.error("Items csv not found at %s. Run preprocess properly.", items_csv)
         return {}
@@ -122,12 +126,14 @@ def run_experiment(
     
     enr = LLMEnricher(backend="heuristic")
     enriched = enr.enrich_items_list(items)
-    
 
-    emb, id2idx = build_embeddings(enriched)
-    
+    ds = dataset_key.lower()
+    emb_path = EMBEDDINGS_NPY.parent / f"item_embeddings_{ds}.npy"
+    map_path = EMBEDDING_MAP.parent / f"id2idx_{ds}.json"
+    faiss_path = FAISS_INDEX_PATH.parent / f"items_{ds}.faiss"
 
-    index = build_faiss_index(emb)
+    emb, id2idx = build_embeddings(enriched, out_npy=emb_path, map_path=map_path)
+    index = build_faiss_index(emb, index_path=faiss_path)
     
 
     G = None

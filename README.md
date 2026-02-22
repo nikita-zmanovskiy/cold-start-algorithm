@@ -1,210 +1,162 @@
-# Cold-Start Recommendation Algorithm
+````markdown
+# Cold-Start Algorithm (Retrieval + LLM/Reranking Experiments)
 
-Research-grade recommendation system for cold-start scenarios.
+> **One-command fast run (start here):**
+```bash
+python -m tools.full_pipeline --clean --fast --rebuild-gt
+````
 
-## Quick Start
+This repository provides an end-to-end pipeline for cold-start evaluation: preprocessing, dataset splits, ground-truth construction, retrieval/reranking experiments, and result aggregation.
 
-https://grouplens.org/datasets/serendipity-2018/
+---
 
-https://github.com/greenblue96/Taobao-Serendipity-Dataset
+## Requirements
 
-### 1. Setup
+* **Python 3.12.7** (used for development)
+* Recommended: `venv` (or conda)
+
+Install dependencies:
 
 ```bash
+python -m venv .venv
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+
 pip install -r requirements.txt
 ```
 
-### 2. Prepare Data
+---
 
-Встроенно в функцию ниже, больше не актуальный шаг 
+## What the fast pipeline does
 
-### 3. Run Experiments
+Running:
 
-главная команда для быстрого теста всех метрик и тд и тп, остальные команды для точечных тестов. 
-
-перед использованием, обязательно создать пустую папку experiments в корне проекта в контексе где лежат data, src, tools. спустя время в папке experiments будет создан файл runs.jsonl - там данные о экспериментах 
-
-```
-
+```bash
 python -m tools.full_pipeline --clean --fast --rebuild-gt
 ```
 
+will:
 
-ниже команда просто запускает экспы, без метрик
+1. Clean previously generated artifacts (when `--clean` is enabled)
+2. Preprocess datasets and write normalized files to `data/processed/`
+3. Create train/val/test splits + cold-start segments
+4. Build / rebuild ground truth (when `--rebuild-gt` is enabled)
+5. Run a small, quick experiment subset (`--fast`) to validate everything works end-to-end
+6. Save logs and results into `experiments/`
+
+---
+
+## Data layout
+
+### Serendipity-2018 (required)
+
+Place the raw interactions CSV here:
 
 ```
-
-python -m src.run_all_experiments --baselines-only
+data/serendipity-sac2018/training.csv
 ```
 
-**Run all experiments (baselines + ablation)** — uses 500 test users and 5 seeds by default (see `src/evaluation_config.py`):
+After preprocessing, the pipeline creates:
+
+* `data/processed/items_serendipity.csv`
+* `data/processed/interactions_serendipity.csv`
+
+### Taobao-Serendipity (optional)
+
+If you want to run Taobao experiments, place the dataset folder here:
+
+```
+data/Taobao-Serendipity-Dataset-master/
+```
+
+After preprocessing (if files are found and parsed), the pipeline creates:
+
+* `data/processed/items_taobao.csv`
+* `data/processed/interactions_taobao.csv`
+
+If Taobao is not present, Serendipity still runs.
+
+---
+
+## Outputs
+
+After running the pipeline, check:
+
+### `experiments/`
+
+Typical outputs:
+
+* `training_interactions_*.csv`
+* `val_interactions_*.csv`
+* `test_interactions_*.csv`
+* `ground_truth_*.json`
+* `split_metadata_*.json`
+* `runs.jsonl` (main experiment log)
+
+### `data/processed/`
+
+* normalized interactions and items CSVs used by the pipeline
+
+---
+
+## Cold-start scenarios
+
+Splits support the following cold-start segments:
+
+* `new_users`: users with zero train interactions
+* `new_items`: interactions with items not seen in train
+* `both`: new users interacting with new items
+
+---
+
+## Useful commands
+
+### Preprocess only
+
 ```bash
-python -m src.run_all_experiments
-
-**Run only ablation study:**
-```bash
-python -m src.run_all_experiments --ablation-only
+python -m src.preprocess
 ```
 
-**Run pool size ablation:**
-```bash
-python -m src.run_ablation_pool_sizes --pool-sizes 200 500 1000
-```
-
-To override: `--n-users N --seeds 42 7 123 2024 2025`
-
-### 4. Full pipeline (one command)
-
-Запустить весь исследовательский пайплайн (эксперименты, агрегация, гипотезы, визуализации, статтесты) одной командой:
+### Build splits + ground truth
 
 ```bash
-python -m tools.full_pipeline
+python -m src.create_splits --dataset serendipity --csv data/serendipity-sac2018/training.csv
+# Optional (Taobao)
+python -m src.create_splits --dataset taobao --csv data/processed/interactions_taobao.csv --random
 ```
 
-В конце скрипт напечатает, какие артефакты были созданы и в каких папках они лежат (master_results, aggregated_results, plots, hypothesis_analysis, score_analysis, stat_tests и т.д.).
+### Run experiments directly
 
-### 5. View Results
-
-All experiments are logged to `experiments/runs.jsonl` (JSON Lines format).
-
-**Aggregate results:**
 ```bash
-python -m tools.aggregate_runs
+python -m src.run_all_experiments --dataset serendipity --n-users 500 --seeds 42
 ```
 
-**Build master results (per-user data + CI):**
-```bash
-python -m tools.build_master_results
-```
+---
 
-**Generate visualizations:**
-```bash
-python -m tools.plotting
-python -m tools.advanced_plotting
-```
+## Troubleshooting
 
-**Statistical tests:**
-```bash
-python -m tools.stat_tests
-python -m tools.enhanced_stat_tests
-```
+### `FileNotFoundError: data/processed/interactions_taobao.csv`
 
-**Generate paper tables:**
-```bash
-python -m tools.generate_paper_tables
-```
+Taobao dataset is missing or preprocessing did not generate the file.
 
-See `ANALYSIS_TOOLS.md` for detailed documentation.
+* Ensure Taobao files exist under `data/Taobao-Serendipity-Dataset-master/`
+* Or run Serendipity only.
 
-## Experiment Configurations
+### Installation issues on Windows (FAISS / Torch)
 
-### Baselines
+Some combinations of Python version + platform can cause install friction for heavy deps.
+If needed:
 
-1. **Random**: Random item selection
-2. **Popularity**: Most popular items
-3. **Embedding cosine**: Cosine similarity between user profile and items (no reranker)
+* use a clean venv
+* try a different compatible Python (3.10/3.11)
+* or adjust experiment settings to avoid components that require problematic packages
 
-### Ablation Study
+---
 
-1. **candidates_only**: FAISS retrieval only (no reranker)
-2. **with_reranker**: FAISS + Cross-encoder reranker
+## License
 
-# Project Structure
+MIT License — see `LICENSE`.
 
 ```
-src/
-├── baselines.py          # Baseline methods (Random, Popularity, Embedding)
-├── run_experiment.py     # Main experiment runner
-├── run_all_experiments.py # Run all experiments script
-├── run_logger.py         # Unified experiment logging (runs.jsonl)
-├── evaluate_results.py   # Evaluation metrics (HR@10, NDCG@10)
-├── candidate_retrieval.py # FAISS-based candidate retrieval
-├── rerank_llm.py         # Cross-encoder reranker
-└── ...
-
-experiments/
-├── runs.jsonl           # Unified experiment log (JSON Lines)
-├── ground_truth.json     # Real GT data
-└── eval_*.csv           # Per-user evaluation results
-
-results/
-└── *.json               # Raw experiment results
+::contentReference[oaicite:0]{index=0}
 ```
-
-## Research Workflow
-
-1. **Run experiments** → logged to `runs.jsonl`
-2. **Analyze results** → load from `runs.jsonl`
-3. **Generate tables/plots** → from unified log
-4. **Answer reviewers** → all runs are logged automatically
-
-## Notes
-
-- **No simulation**: Uses real ground-truth data only
-- **Cold-start**: User profiles are minimal (no history)
-- **Reproducible**: All runs logged with seed and config
-- **Scalable**: Supports 500+ users
-
-## Cleanup
-
-Remove demo/test files:
-```bash
-python tools/cleanup_demo_files.py
-```
-
-Dry-run first:
-```bash
-python tools/cleanup_demo_files.py --dry-run
-```
-
-
-
-python -m tools.build_master_results
-
-
-python -m tools.advanced_plotting
-
-
-python -m tools.enhanced_stat_tests
-
-
-python -m tools.hypothesis_analysis
-
-
-python -m tools.analyze_scores
-
-
-python -m tools.error_analysis
-
-
-python -m tools.fix_gt_catalog --replace
-
-
-python -m tools.fix_gt_catalog
-
-
-
-python -m tools.fix_gt_catalog
-
-
-python -m src.run_all_experiments --n-users 500 --seeds 42 7 123
-
-
-python -m src.run_ablation_pool_sizes --pool-sizes 200 500 1000
-
-
-python -m tools.build_master_results
-python -m tools.aggregate_runs
-
-
-python -m tools.hypothesis_analysis
-python -m tools.analyze_scores
-python -m tools.error_analysis
-python -m tools.enhanced_stat_tests
-
-
-python -m tools.plotting
-python -m tools.advanced_plotting
-
-python -m tools.generate_paper_tables
-

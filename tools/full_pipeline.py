@@ -94,24 +94,61 @@ def main():
             print("Rebuilding ground_truth.json (--rebuild-gt)...")
         else:
             print("experiments/ground_truth.json not found. Creating standardized splits + GT (no leakage)...")
-        ensure_gt = subprocess.run(
+        
+           # (optional but recommended) run preprocess to produce data/processed/interactions_taobao.csv
+        preprocess_res = subprocess.run([sys.executable, "-m", "src.preprocess"], cwd=project_root)
+        if preprocess_res.returncode != 0:
+            print("[WARN] preprocess failed; Taobao splits may be missing. Continuing...")
+
+        # --- 1) Serendipity: build GT + splits (required) ---
+        ensure_gt_ser = subprocess.run(
             [
-                sys.executable,
-                "-m",
-                "src.create_splits",
-                "--csv",
-                "data/serendipity-sac2018/training.csv",
-                "--out-train",
-                str(split_train_out),
-                "--out-gt",
-                str(gt_path),
+                sys.executable, "-m", "src.create_splits",
+                "--csv", "data/serendipity-sac2018/training.csv",
+                "--out-train", str(split_train_out),
+                "--out-gt", str(gt_path),
             ],
             cwd=project_root,
         )
-        if ensure_gt.returncode != 0 or not gt_path.exists():
-            print("[ERROR] Could not create ground_truth.json via create_splits. Please create/restore it manually and re-run.")
+
+        if ensure_gt_ser.returncode != 0 or not gt_path.exists():
+            print("[ERROR] Could not create ground_truth.json via create_splits (serendipity).")
+            print("Please create/restore it manually and re-run.")
             return
-        print("ground_truth.json created via create_splits.\n")
+
+        print("Serendipity ground_truth.json created via create_splits.\n")
+
+        # --- 2) Taobao: build GT + splits (only if interactions exist) ---
+        taobao_csv = project_root / "data" / "processed" / "interactions_taobao.csv"
+        gt_path_taobao = project_root / "experiments" / "ground_truth_taobao.json"
+        split_train_out_taobao = project_root / "experiments" / "training_interactions_taobao.csv"
+        split_val_out_taobao = project_root / "experiments" / "val_interactions_taobao.csv"
+        split_test_out_taobao = project_root / "experiments" / "test_interactions_taobao.csv"
+        split_meta_out_taobao = project_root / "experiments" / "split_metadata_taobao.json"
+
+        if taobao_csv.exists():
+            ensure_gt_tao = subprocess.run(
+                [
+                    sys.executable, "-m", "src.create_splits",
+                    "--csv", str(taobao_csv),
+                    "--random",  # safer: Taobao often has no usable timestamp
+                    "--out-train", str(split_train_out_taobao),
+                    "--out-val", str(split_val_out_taobao),
+                    "--out-test", str(split_test_out_taobao),
+                    "--out-gt", str(gt_path_taobao),
+                    "--out-meta", str(split_meta_out_taobao),
+                ],
+                cwd=project_root,
+            )
+
+            if ensure_gt_tao.returncode != 0 or not gt_path_taobao.exists():
+                print("[ERROR] Could not create Taobao GT/splits via create_splits.")
+                print("Taobao experiments will likely fail until this is fixed.")
+                return
+
+            print("Taobao ground_truth_taobao.json created via create_splits.\n")
+        else:
+            print("[WARN] data/processed/interactions_taobao.csv not found -> skipping Taobao GT/splits.\n")
     elif not args.skip_experiments and gt_path.exists():
 
         try:
