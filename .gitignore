@@ -125,7 +125,7 @@ Thumbs.db
 !experiments/.gitkeep
 !results/.gitkeep
 
-
+experiments/*
 # generated / large artifacts
 experiments/*.csv
 experiments/*.json
