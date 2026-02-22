@@ -138,5 +138,6 @@ data/index/
 *.faiss
 *.pt
 *.bin
+
 __pycache__/
 .venv/
