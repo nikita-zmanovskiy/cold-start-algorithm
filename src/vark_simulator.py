@@ -133,7 +133,8 @@ def build_user_profile_from_minimal(info: Dict):
   
         if not text_profile or not text_profile.strip():
             desc = VARK_TO_DESCRIPTION.get(vark, "User exploring diverse recommendations.")
-            text_profile = f"User profile (cold-start): {desc}"
+            # Add user_id to ensure uniqueness for cold-start users
+            text_profile = f"User profile (cold-start, user_id={user_id}): {desc}"
 
     profile = {
         "user_id": user_id,

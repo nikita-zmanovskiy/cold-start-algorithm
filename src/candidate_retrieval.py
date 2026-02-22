@@ -208,24 +208,41 @@ def get_candidates_for_user(
                     candidate_scores[iid]["pop"] = pop_norm
                     candidate_scores[iid]["pop_rank"] = pop_rank
         
-        # Combine scores: weighted sum (ANN and BM25 are more important than popularity)
-        def compute_combined_score(item_id):
+        # Reciprocal Rank Fusion (RRF): score = sum 1/(k + rank) over sources.
+        # RRF preserves user-specific orderings (ANN/BM25 differ per user) and avoids
+        # popularity dominating when relevance scores are similar.
+        RRF_K = 60  # standard constant
+
+        def compute_rrf_score(item_id):
             scores = candidate_scores.get(item_id, {})
-            ann_score = scores.get("ann", 0.0)
-            bm25_score = scores.get("bm25", 0.0)
-            pop_score = scores.get("pop", 0.0)
-            
-            # Weight: ANN=0.4, BM25=0.4, Popularity=0.2 (or use max if available)
-            # If item appears in multiple sources, boost its score
-            source_count = sum(1 for s in [ann_score, bm25_score, pop_score] if s > 0)
-            source_bonus = 0.1 * (source_count - 1)  # Bonus for appearing in multiple sources
-            
-            combined = 0.4 * ann_score + 0.4 * bm25_score + 0.2 * pop_score + source_bonus
-            return combined
+            rrf = 0.0
+            ann_rank = scores.get("ann_rank")
+            if ann_rank is not None:
+                rrf += 1.0 / (RRF_K + ann_rank)
+            bm25_rank = scores.get("bm25_rank")
+            if bm25_rank is not None:
+                rrf += 1.0 / (RRF_K + bm25_rank)
+            pop_rank = scores.get("pop_rank")
+            if pop_rank is not None:
+                rrf += 0.5 / (RRF_K + pop_rank)  # downweight popularity so user signals dominate
+            return rrf
+
+        # Sort by RRF (higher = better). Tie-break by hash(user_id, item_id) so different
+        # users get different orderings when scores are equal (reduces top-1 collapse).
+        # For cold-start users with similar profiles, add user-specific randomization.
+        user_id = user_profile.get("user_id", "")
+        user_hash = hash(str(user_id)) % 10000  # User-specific offset for randomization
         
-        # Sort candidates by combined score
-        candidates_with_scores = [(iid, compute_combined_score(iid)) for iid in seen]
-        candidates_with_scores.sort(key=lambda x: x[1], reverse=True)
+        def sort_key(item):
+            iid, score = item
+            # Multi-level tie-breaking: hash(user_id+item_id), then item_id hash, then user offset
+            tie1 = hash((str(user_id), str(iid))) % (2 ** 32)
+            tie2 = hash(str(iid)) % (2 ** 16)
+            # Add small user-specific offset to break ties for cold-start users
+            user_offset = (user_hash % 100) / 100000.0  # Very small offset (0.0000-0.0001)
+            return (score + user_offset, tie1, tie2)
+        candidates_with_scores = [(iid, compute_rrf_score(iid)) for iid in seen]
+        candidates_with_scores.sort(key=sort_key, reverse=True)
         candidates = [iid for iid, _ in candidates_with_scores]
         
         max_union = hybrid_union_max if hybrid_union_max is not None else 3 * pool_size

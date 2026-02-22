@@ -57,7 +57,19 @@ def normalize_recs(raw):
     return [{"item_id": str(raw)}]
 
 def extract_rec_ids(rec_list: List[Dict[str,Any]]):
-    return [str(r.get("item_id")) for r in (rec_list or [])]
+    """Extract item IDs from recommendation list, handling various formats."""
+    if not rec_list:
+        return []
+    ids = []
+    for r in rec_list:
+        if isinstance(r, dict):
+            item_id = r.get("item_id") or r.get("id") or r.get("doc_id")
+            if item_id is not None:
+                ids.append(str(item_id))
+        elif isinstance(r, (str, int)):
+            # If it's already an ID string/int, use it directly
+            ids.append(str(r))
+    return ids
 
 
 def bootstrap_ci(
@@ -127,7 +139,12 @@ def evaluate_single(
 
     for uid, raw_recs in results.items():
         recs = normalize_recs(raw_recs)
-        rec_ids = extract_rec_ids(recs) 
+        rec_ids = extract_rec_ids(recs)
+        
+        # Sanity check removed: item_ids can legitimately be sequential numbers (1, 2, 3, ...)
+        # in many datasets. The previous check was too strict and caused false positives.
+        # If there's a real bug (e.g., using list indices instead of item_ids), it will be
+        # caught by other checks (empty results, zero scores, etc.) 
 
         if index_to_uid is not None:
             real_uid = index_to_uid.get(str(uid), str(uid))

@@ -2,16 +2,11 @@
 
 Research-grade recommendation system for cold-start scenarios.
 
-## ✅ Current Status
+## Quick Start
 
-- ✔ **Real ground-truth data** from Serendipity-2018 dataset
-- ✔ **Correct evaluation pipeline** (HR@10, NDCG@10)
-- ✔ **Baseline methods** (Random, Popularity, Embedding cosine)
-- ✔ **Unified experiment logging** (runs.jsonl)
-- ✔ **Ablation study support**
-- ✔ **Canonical evaluation protocol** — 500 test users, 5 seeds; see [experiments/EVALUATION_PROTOCOL.md](experiments/EVALUATION_PROTOCOL.md) for the paper
+https://grouplens.org/datasets/serendipity-2018/
 
-## 🚀 Quick Start
+https://github.com/greenblue96/Taobao-Serendipity-Dataset
 
 ### 1. Setup
 
@@ -21,25 +16,30 @@ pip install -r requirements.txt
 
 ### 2. Prepare Data
 
-```bash
-# Preprocess data (if not done)
-python -m src.preprocess
-
-# Create ground truth (if not exists)
-python -m src.create_ground_truth --csv data/processed/interactions.csv --out experiments/ground_truth.json
-```
+Встроенно в функцию ниже, больше не актуальный шаг 
 
 ### 3. Run Experiments
+
+главная команда для быстрого теста всех метрик и тд и тп, остальные команды для точечных тестов. 
+
+перед использованием, обязательно создать пустую папку experiments в корне проекта в контексе где лежат data, src, tools. спустя время в папке experiments будет создан файл runs.jsonl - там данные о экспериментах 
+
+```
+
+python -m tools.full_pipeline --clean --fast --rebuild-gt
+```
+
+
+ниже команда просто запускает экспы, без метрик
+
+```
+
+python -m src.run_all_experiments --baselines-only
+```
 
 **Run all experiments (baselines + ablation)** — uses 500 test users and 5 seeds by default (see `src/evaluation_config.py`):
 ```bash
 python -m src.run_all_experiments
-```
-
-**Run only baselines:**
-```bash
-python -m src.run_all_experiments --baselines-only
-```
 
 **Run only ablation study:**
 ```bash
@@ -96,7 +96,7 @@ python -m tools.generate_paper_tables
 
 See `ANALYSIS_TOOLS.md` for detailed documentation.
 
-## 📊 Experiment Configurations
+## Experiment Configurations
 
 ### Baselines
 
@@ -109,7 +109,7 @@ See `ANALYSIS_TOOLS.md` for detailed documentation.
 1. **candidates_only**: FAISS retrieval only (no reranker)
 2. **with_reranker**: FAISS + Cross-encoder reranker
 
-## 📁 Project Structure
+# Project Structure
 
 ```
 src/
@@ -131,21 +131,21 @@ results/
 └── *.json               # Raw experiment results
 ```
 
-## 🔬 Research Workflow
+## Research Workflow
 
 1. **Run experiments** → logged to `runs.jsonl`
 2. **Analyze results** → load from `runs.jsonl`
 3. **Generate tables/plots** → from unified log
 4. **Answer reviewers** → all runs are logged automatically
 
-## 📝 Notes
+## Notes
 
 - **No simulation**: Uses real ground-truth data only
 - **Cold-start**: User profiles are minimal (no history)
 - **Reproducible**: All runs logged with seed and config
 - **Scalable**: Supports 500+ users
 
-## 🧹 Cleanup
+## Cleanup
 
 Remove demo/test files:
 ```bash
@@ -159,82 +159,52 @@ python tools/cleanup_demo_files.py --dry-run
 
 
 
-Следующие шаги
-Пересобрать эксперименты:
-   python -m src.run_all_experiments --n-users 500 --seeds 42 7 123
-Агрегировать результаты:
-   python -m tools.aggregate_runs
-Сгенерировать визуализации:
-   python -m tools.plotting
-Создать таблицы для статьи:
-   python -m tools.generate_paper_tables
-Запустить статистические тесты:
-   python -m tools.stat_tests
-
-
-
-# 1. Соберите master results (per-user arrays + CI)
 python -m tools.build_master_results
 
-# 2. Сгенерируйте расширенные визуализации
+
 python -m tools.advanced_plotting
 
-# 3. Запустите расширенные статистические тесты
+
 python -m tools.enhanced_stat_tests
 
-# 4. Проверьте гипотезы о причинах проблем
+
 python -m tools.hypothesis_analysis
 
-# 5. Анализ reranker scores
+
 python -m tools.analyze_scores
 
-# 6. Error analysis
+
 python -m tools.error_analysis
 
-# 7. Исправить GT (если есть missing items)
-# Автоматически создаст backup и заменит файл:
+
 python -m tools.fix_gt_catalog --replace
 
-# Или только исправить без замены (потом заменить вручную):
+
 python -m tools.fix_gt_catalog
 
 
 
-
-
-
-
-# 1. Исправить GT
 python -m tools.fix_gt_catalog
-# Затем заменить ground_truth.json на ground_truth_fixed.json
 
-# 2. Пересобрать эксперименты
+
 python -m src.run_all_experiments --n-users 500 --seeds 42 7 123
 
-# 3. Ablation по pool sizes
+
 python -m src.run_ablation_pool_sizes --pool-sizes 200 500 1000
 
-# 4. Собрать все данные
+
 python -m tools.build_master_results
 python -m tools.aggregate_runs
 
-# 5. Все анализы
+
 python -m tools.hypothesis_analysis
 python -m tools.analyze_scores
 python -m tools.error_analysis
 python -m tools.enhanced_stat_tests
 
-# 6. Визуализации
+
 python -m tools.plotting
 python -m tools.advanced_plotting
 
-# 7. Таблицы
 python -m tools.generate_paper_tables
 
-
-
-
-
-python -m tools.full_pipeline --clean --fast --rebuild-gt
-
-python -m tools.full_pipeline --clean --fast --rebuild-gt

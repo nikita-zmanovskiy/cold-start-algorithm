@@ -1,5 +1,9 @@
-
 from pathlib import Path
+import os
+
+# Reduce Hugging Face Hub warnings when HF_TOKEN is not set (optional for higher rate limits)
+if not os.environ.get("HF_TOKEN"):
+    os.environ.setdefault("HF_HUB_VERBOSITY", "error")
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"

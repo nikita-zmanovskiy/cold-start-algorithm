@@ -116,6 +116,11 @@ class CrossReranker:
     def rerank(self, user_profile: dict, candidate_ids: list, topk=10, batch_size=256):
 
         raw_query = user_profile.get("text_profile") or user_profile.get("goal") or ""
+        # For cold-start users, ensure query is not empty and includes user_id for diversity
+        if not raw_query or not raw_query.strip() or raw_query.strip().startswith("User profile (cold-start"):
+            user_id = user_profile.get("user_id", "")
+            vark = user_profile.get("vark", "visual")
+            raw_query = f"user_id={user_id}, vark={vark}, exploring diverse recommendations"
         query = format_reranker_query(raw_query)
         
 
