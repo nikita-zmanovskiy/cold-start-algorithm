@@ -124,3 +124,19 @@ Thumbs.db
 !data/.gitkeep
 !experiments/.gitkeep
 !results/.gitkeep
+
+
+# generated / large artifacts
+experiments/*.csv
+experiments/*.json
+experiments/*.jsonl
+results/
+data/processed/
+data/embeddings/
+data/index/
+*.npy
+*.faiss
+*.pt
+*.bin
+__pycache__/
+.venv/
