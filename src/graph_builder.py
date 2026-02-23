@@ -36,12 +36,12 @@ def add_similarity_edges(G, items, embeddings, id2idx, top_k=5):
     index.add(xb)
     D, I = index.search(xb, top_k+1) 
     for i, neighbors in enumerate(I):
-        src_id = idx2id[str(i)] if str(i) in idx2id else None
+        src_id = idx2id.get(i)
         if src_id is None:
             continue
         src_node = f"item:{src_id}"
         for j in neighbors[1:]:
-            tgt_id = idx2id.get(str(j))
+            tgt_id = idx2id.get(int(j))
             if tgt_id is None:
                 continue
             tgt_node = f"item:{tgt_id}"

@@ -242,6 +242,47 @@ def run_experiment(
             norm_gt[uid_s] = [str(x) for x in vals]
     gt_data = norm_gt
     user_pool = sorted(list(gt_data.keys()))
+
+    # ---- Paper protocol: optional filtering of evaluation users ----
+    eval_scenario = (config.get("eval_scenario") or "").strip().lower()
+    eval_bucket = (config.get("eval_bucket") or "").strip()
+    eval_min_train = config.get("eval_min_train_interactions")
+    eval_max_train = config.get("eval_max_train_interactions")
+
+    if eval_scenario or eval_bucket or eval_min_train is not None or eval_max_train is not None:
+        try:
+            split_meta = json.load(open(split_meta_path, "r", encoding="utf-8"))
+        except Exception:
+            split_meta = {}
+
+        scenario_to_users = split_meta.get("scenario_to_users") or {}
+        bucket_to_users = split_meta.get("bucket_to_users") or {}
+        user_meta = split_meta.get("user_meta") or {}
+
+        if eval_scenario and eval_scenario != "all":
+            allowed = set(str(u) for u in scenario_to_users.get(eval_scenario, []))
+            user_pool = [u for u in user_pool if u in allowed]
+
+        if eval_bucket:
+            allowed = set(str(u) for u in bucket_to_users.get(eval_bucket, []))
+            user_pool = [u for u in user_pool if u in allowed]
+
+        if eval_min_train is not None or eval_max_train is not None:
+            lo = int(eval_min_train) if eval_min_train is not None else None
+            hi = int(eval_max_train) if eval_max_train is not None else None
+            filtered = []
+            for u in user_pool:
+                n_tr = int((user_meta.get(str(u)) or {}).get("n_train_interactions", 0))
+                if lo is not None and n_tr < lo:
+                    continue
+                if hi is not None and n_tr > hi:
+                    continue
+                filtered.append(u)
+            user_pool = filtered
+
+        user_pool = sorted(user_pool)
+    # ---- end paper protocol filtering ----
+
     
     if len(user_pool) < n_users:
         logger.warning("Requested %d users but GT has only %d users; reducing n_users.", n_users, len(user_pool))
@@ -358,7 +399,20 @@ def run_experiment(
         uid = str(user_real_id)
         
 
-        viewed_ids = (train_items_by_user.get(uid, [])[-viewed_k:]) if train_items_by_user else []
+        all_train = train_items_by_user.get(uid, []) if train_items_by_user else []
+        fewshot_cap = config.get("fewshot_train_cap")
+
+        if fewshot_cap is not None:
+            cap = int(fewshot_cap)
+            if cap <= 0:
+                viewed_ids = []
+            else:
+                viewed_ids = all_train[-cap:]
+        else:
+            viewed_ids = all_train[-viewed_k:] if all_train else []
+
+
+
         gt_items = gt_data.get(uid, [])
         gt_set = set(str(x) for x in (gt_items or []))
         gt_sizes.append(len(gt_set))
@@ -381,18 +435,18 @@ def run_experiment(
             "time_of_day": None,
             "session_len": None,
             "viewed_item_ids": viewed_ids,
-            "items_meta": enriched if viewed_ids else None,
+            "items_meta": enriched,
         }
         profile = build_user_profile_from_minimal(info)
         profile_type = config.get("profile_type", "last_k_items")
         if profile_type == "summary" and viewed_ids and enriched_by_id:
-            titles = [enriched_by_id.get(str(iid), {}).get("title", "") for iid in viewed_ids[:viewed_k]]
+            titles = [enriched_by_id.get(str(iid), {}).get("title", "") for iid in viewed_ids]
             titles = [t.strip() for t in titles if t and t.strip()]
             if titles:
                 profile["text_profile"] = "User likes: " + "; ".join(titles)
         if profile_type == "centroid" and viewed_ids and emb is not None and id2idx is not None:
             vecs = []
-            for iid in viewed_ids[:viewed_k]:
+            for iid in viewed_ids:
                 idx = id2idx.get(str(iid))
                 if idx is not None and idx < len(emb):
                     vecs.append(emb[int(idx)])

@@ -195,7 +195,20 @@ def compute_diagnostics(
         if run_meta.get("leakage_sanity") is not None:
             diagnostics["leakage_sanity"] = run_meta.get("leakage_sanity")
     else:
-        diagnostics["candidate_pool_size"] = len(candidate_pools) if candidate_pools else None  
+        # If run_meta doesn't provide pool size, derive it from candidate_pools dict.
+        if candidate_pools and isinstance(candidate_pools, dict):
+            pool_sizes = [len(v) for v in candidate_pools.values() if v is not None]
+            if pool_sizes:
+                diagnostics["candidate_pool_size_mean"] = float(np.mean(pool_sizes))
+                diagnostics["candidate_pool_size_p50"] = int(np.median(pool_sizes))
+                diagnostics["candidate_pool_size_min"] = int(np.min(pool_sizes))
+                diagnostics["candidate_pool_size_max"] = int(np.max(pool_sizes))
+                # keep old field name, but make it meaningful:
+                diagnostics["candidate_pool_size"] = int(np.median(pool_sizes))
+            else:
+                diagnostics["candidate_pool_size"] = None
+        else:
+            diagnostics["candidate_pool_size"] = None
     
 
     sanity_sample = []

@@ -9,14 +9,27 @@ def hr_at_k(recommended: List[str], ground_truth: List[str], k=10):
     return 1.0 if any(r in ground_truth for r in rec) else 0.0
 
 def ndcg_at_k(recommended: List[str], ground_truth: List[str], k=10):
-    rec = recommended[:k]
-    idcg = 1.0  
+    """
+    Binary nDCG@k:
+      - rel = 1 if item in ground_truth else 0
+      - DCG = sum_{i=1..k} rel_i / log2(i+1)
+      - IDCG = DCG of ideal ranking with all relevant items first
+    """
+    if not recommended or not ground_truth or k <= 0:
+        return 0.0
+    gt_set = set(str(x) for x in ground_truth)
+    rec = [str(x) for x in recommended[:k]]
+
     dcg = 0.0
-    for i, r in enumerate(rec):
-        rel = 1.0 if r in ground_truth else 0.0
-        if rel > 0:
-            dcg += rel / math.log2(i + 2)
-    return dcg / idcg
+    for i, r in enumerate(rec, start=1):
+        if r in gt_set:
+            dcg += 1.0 / math.log2(i + 1)
+
+    rel = min(len(gt_set), k)
+    if rel <= 0:
+        return 0.0
+    idcg = sum(1.0 / math.log2(i + 1) for i in range(1, rel + 1))
+    return dcg / idcg if idcg > 0 else 0.0
 
 def mrr_at_k(recommended: List[str], ground_truth: List[str], k=10):
 

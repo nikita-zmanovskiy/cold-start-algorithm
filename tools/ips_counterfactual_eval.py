@@ -74,12 +74,15 @@ def hr_at_k_ips_snips_per_user(
 
 
 def ndcg_at_k_binary(rec_ids: List[str], gt_set: set, k: int = K) -> float:
-
+    """
+    Binary nDCG@k for IPS/SNIPS (no need to normalise by IDCG here if
+    all methods are compared consistently; keep DCG as-is).
+    """
     dcg = 0.0
     for r, iid in enumerate(rec_ids[:k]):
         rel = 1.0 if iid in gt_set else 0.0
         dcg += rel / math.log2(r + 2)
-    return dcg  # idcg=1.0 for binary
+    return dcg
 
 
 def build_synthetic_log_from_runs(

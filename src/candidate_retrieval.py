@@ -1,4 +1,4 @@
-
+import hashlib
 from .vector_index import search_index
 from .embeddings import load_embeddings
 from .config import CANDIDATE_POOL, EMBED_MODEL
@@ -13,6 +13,11 @@ _query_encoder = None
 _bm25_index = None
 _bm25_item_ids = None
 
+
+def _stable_int_hash(s: str) -> int:
+    """Deterministic int hash (unlike Python hash(), which is salted per process)."""
+    s = "" if s is None else str(s)
+    return int(hashlib.md5(s.encode("utf-8")).hexdigest()[:8], 16)
 
 def _get_query_encoder():
     global _query_encoder
@@ -44,9 +49,21 @@ def _get_bm25_index(items_list: list) -> tuple:
     ids = []
     for it in items_list:
         item_id = str(it.get("item_id"))
-        title = str(it.get("title", ""))
-        genres = str(it.get("genres", ""))
-        text = f"{title} {genres}".strip()
+        title = str(it.get("title", "") or "")
+        genres = str(it.get("genres", "") or "")
+        format_tags = it.get("format_tags") or it.get("tags") or ""
+        category = it.get("category") or it.get("categories") or ""
+        desc = it.get("description") or it.get("text") or ""
+
+        # нормализуем списки в строки
+        if isinstance(format_tags, (list, tuple, set)):
+            format_tags = ", ".join(str(x) for x in format_tags)
+        if isinstance(category, (list, tuple, set)):
+            category = ", ".join(str(x) for x in category)
+        if isinstance(desc, (list, tuple, set)):
+            desc = " ".join(str(x) for x in desc)
+
+        text = f"{title} {genres} {format_tags} {category} {desc}".strip()
         texts.append(text)
         ids.append(item_id)
 
@@ -244,6 +261,17 @@ def get_candidates_for_user(
         candidates_with_scores = [(iid, compute_rrf_score(iid)) for iid in seen]
         candidates_with_scores.sort(key=sort_key, reverse=True)
         candidates = [iid for iid, _ in candidates_with_scores]
+
+        # --- Anti-collapse fallback ---
+        # If ANN is unavailable AND BM25 has essentially no signal (all ~0),
+        # rotate popularity candidates by user_id so top-1 isn't identical for everyone.
+        bm25_max_raw = max(bm25_scores_dict.values()) if bm25_scores_dict else 0.0
+        if (not ann_candidates) and (bm25_max_raw < 1e-8) and popularity_candidates:
+            offset = _stable_int_hash(user_profile.get("user_id", "")) % len(popularity_candidates)
+            rotated_pop = popularity_candidates[offset:] + popularity_candidates[:offset]
+            pop_set = set(rotated_pop)
+            candidates = rotated_pop + [iid for iid in candidates if iid not in pop_set]
+        # --- end anti-collapse fallback ---
         
         max_union = hybrid_union_max if hybrid_union_max is not None else 3 * pool_size
         if len(candidates) > max_union:

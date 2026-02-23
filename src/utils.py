@@ -32,22 +32,27 @@ def set_seed(seed=42):
     np.random.seed(seed)
 
 
-_EMBEDDER = None
-_EMBEDDER_NAME = None
+_EMBEDDERS = {}  # model_name -> SentenceTransformer
 
 def get_embedder(model_name: str = None):
-
-    global _EMBEDDER, _EMBEDDER_NAME
+    """
+    Loads SentenceTransformer once per model name.
+    This makes ablations/config sweeps reproducible and correct.
+    """
     model_name = model_name or EMBED_MODEL
-
     model_name_norm = model_name if isinstance(model_name, str) else str(model_name)
-    if _EMBEDDER is not None and _EMBEDDER_NAME == model_name_norm:
-        return _EMBEDDER
-    if _EMBEDDER is not None and _EMBEDDER_NAME != model_name_norm:
-        
-        logger.info("get_embedder: different model requested (%s) but embedder already loaded (%s). Reusing existing.", model_name_norm, _EMBEDDER_NAME)
-        return _EMBEDDER
-    logger.info("Loading SentenceTransformer model '%s' (this happens once)...", model_name_norm)
-    _EMBEDDER = SentenceTransformer(model_name_norm)
-    _EMBEDDER_NAME = model_name_norm
-    return _EMBEDDER
+
+    if model_name_norm in _EMBEDDERS:
+        return _EMBEDDERS[model_name_norm]
+
+    logger.info("Loading SentenceTransformer model '%s' (cached per name)...", model_name_norm)
+    emb = SentenceTransformer(model_name_norm)
+    _EMBEDDERS[model_name_norm] = emb
+    return emb
+
+def clear_embedder_cache(model_name: str = None):
+    """Optional: free RAM if you loaded multiple models."""
+    if model_name is None:
+        _EMBEDDERS.clear()
+    else:
+        _EMBEDDERS.pop(model_name, None)

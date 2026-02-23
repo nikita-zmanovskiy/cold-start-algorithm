@@ -9,11 +9,15 @@ from .config import EMBED_MODEL, EMBEDDING_MAP, EMBEDDINGS_NPY
 
 
 def random_baseline(items_list: List[Dict], k: int = 10, seed: int = None) -> List[Dict]:
-
     if len(items_list) < k:
         k = len(items_list)
-    
-    selected = random.sample(items_list, k)
+
+    if seed is not None:
+        rng = random.Random(seed)
+        selected = rng.sample(items_list, k)
+    else:
+        selected = random.sample(items_list, k)
+
     return [{"item_id": str(it.get("item_id")), "score": 0.0, "method": "random"} for it in selected]
 
 

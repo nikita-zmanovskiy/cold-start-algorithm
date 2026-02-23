@@ -106,19 +106,6 @@ def evaluate_single(
     k=10,
     n_bootstrap: int = 1000,
 ):
-    def compute_ndcg_at_k(rel_list, k):
-
-        dcg = 0.0
-        for i, rel in enumerate(rel_list[:k], start=1):
-            if rel:
-                dcg += 1.0 / np.log2(i + 1)
-        ideal_rels = sorted(rel_list, reverse=True)
-        idcg = 0.0
-        for i, rel in enumerate(ideal_rels[:k], start=1):
-            if rel:
-                idcg += 1.0 / np.log2(i + 1)
-        return (dcg / idcg) if idcg > 0 else 0.0
-
     rows = []
     hr_vals = []
     ndcg_vals = []
@@ -181,7 +168,9 @@ def evaluate_single(
 
 
         rel_list = [1 if x in pos_ids else 0 for x in topk_ids]
-        ndcg = compute_ndcg_at_k(rel_list, k)
+        # Use unified metrics.ndcg_at_k implementation for consistency
+        from .metrics import ndcg_at_k as _ndcg_at_k_unified
+        ndcg = _ndcg_at_k_unified(topk_ids, pos_ids, k=k)
 
         mrr = 0.0
         for i, x in enumerate(topk_ids, start=1):
@@ -267,13 +256,20 @@ def evaluate_by_buckets_and_scenarios(
 
     user_hr = {}
     user_ndcg = {}
+
+    user_mrr = {}
+    user_map = {}
     for row in rows:
         uid = str(row.get("user", row.get("user_id", "")))
         try:
             user_hr[uid] = float(row.get(f"hr@{k}", row.get("hr@10", 0)) or 0)
             user_ndcg[uid] = float(row.get(f"ndcg@{k}", row.get("ndcg@10", 0)) or 0)
+            user_mrr[uid] = float(row.get(f"mrr@{k}", row.get("mrr@10", 0)) or 0)
+            user_map[uid] = float(row.get(f"map@{k}", row.get("map@10", 0)) or 0)
         except (TypeError, ValueError):
             user_hr[uid] = 0.0
+            user_mrr[uid] = 0.0
+            user_map[uid] = 0.0
             user_ndcg[uid] = 0.0
 
     user_meta = split_metadata.get("user_meta") or {}
@@ -283,12 +279,16 @@ def evaluate_by_buckets_and_scenarios(
     def agg_for_users(uids: List[str]):
         hr_vals = [user_hr.get(u, 0.0) for u in uids if u in user_hr]
         ndcg_vals = [user_ndcg.get(u, 0.0) for u in uids if u in user_ndcg]
+        mrr_vals = [user_mrr.get(u, 0.0) for u in uids if u in user_mrr]
+        map_vals = [user_map.get(u, 0.0) for u in uids if u in user_map]
         n = len(hr_vals)
         if n == 0:
-            return {"hr_mean": None, "ndcg_mean": None, "n_users": 0}
+            return {"hr_mean": None, "ndcg_mean": None, "mrr_mean": None, "map_mean": None, "n_users": 0}
         return {
             "hr_mean": float(np.mean(hr_vals)),
             "ndcg_mean": float(np.mean(ndcg_vals)),
+            "mrr_mean": float(np.mean(mrr_vals)),
+            "map_mean": float(np.mean(map_vals)),
             "n_users": n,
         }
 

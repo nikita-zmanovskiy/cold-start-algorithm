@@ -194,7 +194,7 @@ def build_splits(
     # last -> test, penultimate -> val, rest -> train; then filter test users
     # so that everyone in test has at least 1 train interaction.
     if ds_key == "movielens":
-        min_user_interactions = 1
+        min_user_interactions = 0
         logger.info(
             "Using leave-one-out split for MovieLens (min_user_interactions_in_train=%d)",
             min_user_interactions,
@@ -248,7 +248,7 @@ def build_splits(
     scenario_to_users = {
         "new_users": [uid for uid in test_users if user_meta[uid]["is_new_user"]],
         "new_items": list(users_new_items),
-        "both": list(set(u for u in test_users if user_meta[u]["is_new_user"] or u in users_new_items)),
+        "both": [u for u in test_users if user_meta[u]["is_new_user"] and u in users_new_items],
     }
 
     bucket_to_users = defaultdict(list)

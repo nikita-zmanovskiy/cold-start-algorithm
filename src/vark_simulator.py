@@ -2,6 +2,49 @@
 from typing import Dict, List, Any, Optional
 from .utils import logger
 
+import hashlib
+import random
+import re
+from collections import Counter
+
+_TAG_VOCAB = None
+
+def _stable_seed(s: str) -> int:
+    s = s or ""
+    return int(hashlib.md5(s.encode("utf-8")).hexdigest()[:8], 16)
+
+def _get_tag_vocab(items_meta, max_vocab: int = 2000):
+    """
+    Собирает частотный словарь жанров/тегов из каталога.
+    Кэшируется один раз на запуск, чтобы не сканировать каталог для каждого юзера.
+    """
+    global _TAG_VOCAB
+    if _TAG_VOCAB is not None:
+        return _TAG_VOCAB
+
+    c = Counter()
+    iters = items_meta if isinstance(items_meta, list) else list((items_meta or {}).values())
+
+    for it in iters:
+        for key in ("genres", "format_tags", "tags", "category", "categories"):
+            tags = it.get(key)
+            if not tags:
+                continue
+
+            if isinstance(tags, str):
+                parts = [p.strip() for p in re.split(r"[|,/;]+", tags) if p.strip()]
+            elif isinstance(tags, (list, tuple, set)):
+                parts = [str(p).strip() for p in tags if str(p).strip()]
+            else:
+                parts = [str(tags).strip()]
+
+            for p in parts:
+                if p:
+                    c[p.lower()] += 1
+
+    _TAG_VOCAB = [t for t, _ in c.most_common(max_vocab)]
+    return _TAG_VOCAB
+
 
 VARK_TO_DESCRIPTION = {
     "visual": "User prefers visual learning; interested in diagrams, images, and visual content.",
@@ -133,8 +176,20 @@ def build_user_profile_from_minimal(info: Dict):
   
         if not text_profile or not text_profile.strip():
             desc = VARK_TO_DESCRIPTION.get(vark, "User exploring diverse recommendations.")
-            # Add user_id to ensure uniqueness for cold-start users
-            text_profile = f"User profile (cold-start, user_id={user_id}): {desc}"
+
+            # Deterministic "onboarding" interests from catalog tags (NO GT leakage).
+            sampled = []
+            if items_meta:
+                vocab = _get_tag_vocab(items_meta)
+                if vocab:
+                    rng = random.Random(_stable_seed(str(user_id)))
+                    k = min(3, len(vocab))
+                    sampled = rng.sample(vocab, k=k)
+
+            if sampled:
+                text_profile = f"Cold-start profile: {desc} Stated interests: {', '.join(sampled)}."
+            else:
+                text_profile = f"Cold-start profile: {desc}"
 
     profile = {
         "user_id": user_id,

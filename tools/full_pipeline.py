@@ -207,6 +207,8 @@ def main():
     seeds_arg = ["--seeds"] + seeds
     pool_sizes_list = FAST_POOL_SIZES if fast else ABLATION_POOL_SIZES  
     pool_list = [str(p) for p in pool_sizes_list]
+    paper_caps = [str(c) for c in ([0, 1, 5] if fast else list(range(0, 21)))]
+    gt_movielens = project_root / "experiments" / "ground_truth_movielens.json"
 
     print("=" * 60)
     print("Cold-Start Recommendation: Full Pipeline" + (" [FAST MODE]" if fast else ""))
@@ -330,6 +332,37 @@ def main():
             + ["--dataset", "serendipity"],
         ),
     ]
+
+    # --- Paper-suite (few-shot curve + paired bootstrap) ---
+    # В fast-режиме делаем только 3 точки (0,1,5), в full — 0..20.
+    # Baseline для paired tests включаем только в full (чтобы fast был быстрый).
+    if (not args.skip_experiments) and gt_movielens.exists():
+        insert_after = None
+        for i, (name, _) in enumerate(post_steps):
+            if name.startswith("10h)"):
+                insert_after = i
+                break
+
+        paper_cmd = (
+            ["python", "-m", "src.paper_suite",
+            "--dataset", "movielens",
+            "--n-users", n_users,
+            "--seeds"] + seeds +
+            ["--caps"] + paper_caps +
+            (["--baseline", "embedding_cosine"] if not fast else []) +
+            ["--retrieval-mode", "hybrid"]
+        )
+
+        step = ("10i) Paper-suite few-shot curve + paired bootstrap (MovieLens)", paper_cmd)
+
+        if insert_after is None:
+            post_steps.append(step)
+        else:
+            post_steps.insert(insert_after + 1, step)
+    else:
+        if not gt_movielens.exists():
+            print("[WARN] experiments/ground_truth_movielens.json not found -> skipping paper_suite for MovieLens.")
+    # --- end paper-suite ---
 
     if not args.skip_experiments:
         for step in experiment_steps:
