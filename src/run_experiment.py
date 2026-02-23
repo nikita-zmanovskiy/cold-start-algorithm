@@ -2,6 +2,7 @@
 import csv
 import random
 import time
+from .evaluation_config import get_eval_paths
 from pathlib import Path
 from .utils import logger, set_seed, save_json
 from .preprocess import run_all
@@ -99,7 +100,7 @@ def run_experiment(
             **config,
         }
     
-    from .evaluation_config import N_TEST_USERS
+    from .evaluation_config import N_TEST_USERS, get_eval_paths
     if n_users is None:
         n_users = N_TEST_USERS
 
@@ -109,6 +110,17 @@ def run_experiment(
     run_all()
     
     dataset_key = (config.get("dataset", dataset) or "serendipity").lower()
+    # --- Dataset-specific eval files (train/gt/split_meta) ---
+    # 
+    paths = get_eval_paths(dataset_key)
+
+    # If user didn't pass explicit paths, use dataset defaults
+    if not config.get("train_interactions_path"):
+        config["train_interactions_path"] = str(paths["train"])
+    if not config.get("ground_truth_path"):
+        config["ground_truth_path"] = str(paths["gt"])
+    if not config.get("split_metadata_path"):
+        config["split_metadata_path"] = str(paths["split_meta"])
     suffix = "taobao" if dataset_key.startswith("taobao") else "serendipity"
 
     items_csv = PROCESSED_DIR / f"items_{suffix}.csv"
@@ -123,6 +135,48 @@ def run_experiment(
         logger.error("Items csv not found at %s. Run preprocess properly.", items_csv)
         return {}
     items = load_items_from_csv(items_csv)
+
+    # --- wipe stale taobao embedding/index cache if catalog size changed ---
+    # --- wipe stale taobao embedding/index cache if catalog size changed ---
+    if suffix == "taobao" and embeddings_npy.exists():
+        try:
+            # ВАЖНО: без mmap_mode="r", чтобы на Windows файл не оставался "занятым"
+            emb = np.load(embeddings_npy)  # np уже импортирован вверху файла
+            if emb.shape[0] != len(items):
+                logger.warning(
+                    "Taobao cache mismatch: embeddings have %d vectors but catalog has %d items. Rebuilding cache.",
+                    emb.shape[0], len(items)
+                )
+                # освобождаем массив, чтобы Windows точно отпустил файл
+                del emb
+                import gc, time
+                gc.collect()
+                time.sleep(0.2)
+
+                embeddings_npy.unlink(missing_ok=True)
+                embedding_map.unlink(missing_ok=True)
+                faiss_index_path.unlink(missing_ok=True)
+        except Exception:
+            # если кэш битый/нечитаемый — форсим перестройку
+            try:
+                embeddings_npy.unlink(missing_ok=True)
+            except Exception:
+                pass
+            try:
+                embedding_map.unlink(missing_ok=True)
+            except Exception:
+                pass
+            try:
+                faiss_index_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+    # ----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
+
+    # Normalize item_id to str to avoid int/str mismatches downstream
+    for it in items:
+        if isinstance(it, dict) and "item_id" in it and it["item_id"] is not None:
+            it["item_id"] = str(it["item_id"])
     
     enr = LLMEnricher(backend="heuristic")
     enriched = enr.enrich_items_list(items)
@@ -162,10 +216,25 @@ def run_experiment(
             two_stage_config=config.get("two_stage_rerank_config"), 
         )
     
+    # Dataset-specific eval file paths (gt/train/meta)
+    eval_paths = get_eval_paths(dataset_key)
 
-    gt_path = Path(config.get("ground_truth_path")) if config and config.get("ground_truth_path") else Path("experiments") / "ground_truth.json"
+    gt_path = Path(config.get("ground_truth_path") or eval_paths["gt"])
+    split_meta_path = Path(config.get("split_metadata_path") or eval_paths["split_meta"])
+    split_train_path = Path(config.get("train_interactions_path") or eval_paths["train"])
     gt_raw = json.load(open(gt_path, "r", encoding="utf-8"))
     gt_data = gt_raw.get("data", gt_raw)
+    # Normalize GT to str ids (keys=user_id, values=item_id)
+    norm_gt = {}
+    for uid, vals in (gt_data or {}).items():
+        uid_s = str(uid)
+        if isinstance(vals, dict) and "items" in vals:
+            vals = vals["items"]
+        if vals is None:
+            norm_gt[uid_s] = []
+        else:
+            norm_gt[uid_s] = [str(x) for x in vals]
+    gt_data = norm_gt
     user_pool = sorted(list(gt_data.keys()))
     
     if len(user_pool) < n_users:
@@ -189,7 +258,7 @@ def run_experiment(
         if override_train:
             train_path = Path(override_train)
         else:
-            split_train_path = Path("experiments") / "training_interactions.csv"
+            # split_train_path = Path("experiments") / "training_interactions.csv"
             if split_train_path.exists():
                 train_path = split_train_path
             else:
@@ -225,7 +294,7 @@ def run_experiment(
         if override_train:
             train_path = Path(override_train)
         else:
-            split_train_path = Path("experiments") / "training_interactions.csv"
+            # split_train_path = Path("experiments") / "training_interactions.csv"
             if split_train_path.exists():
                 train_path = split_train_path
             else:
@@ -871,8 +940,15 @@ def run_with_logging(
   
     from .evaluate_results import evaluate_single, load_gt_struct, load_split_metadata, evaluate_by_buckets_and_scenarios
     
-    gt_path = Path(config.get("ground_truth_path")) if config and config.get("ground_truth_path") else None
-    split_meta_path = Path(config.get("split_metadata_path")) if config and config.get("split_metadata_path") else None
+    from .evaluation_config import get_eval_paths
+
+    cfg = config or {}
+    dataset_key = (cfg.get("dataset") or dataset or "serendipity").lower()
+    paths = get_eval_paths(dataset_key)
+
+    gt_path = Path(cfg.get("ground_truth_path") or paths["gt"])
+    split_meta_path = Path(cfg.get("split_metadata_path") or paths["split_meta"])
+
     gt_wrapper = load_gt_struct(gt_path=gt_path)
     gt = gt_wrapper["data"]
     
@@ -1070,7 +1146,7 @@ def run_with_logging(
             "robustness": config.get("robustness") if config else None,
             "train_interactions_path": config.get("train_interactions_path") if config else None,
             "ground_truth_path": str(gt_path) if gt_path else None,
-            "split_metadata_path": config.get("split_metadata_path") if config else None,
+            "split_metadata_path": str(split_meta_path) if split_meta_path else None,
         },
         metrics=metrics,
         metrics_pre=metrics_pre,
@@ -1106,7 +1182,7 @@ def run_with_logging(
     save_json(results_dir / f"{run_id}.json", results_to_save)
     
 
-    from pathlib import Path
+   
     import csv
     OUT_DIR = Path("experiments")
     csv_path = OUT_DIR / f"{run_id}_per_user.csv"

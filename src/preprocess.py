@@ -113,22 +113,61 @@ def prepare_taobao(src_dir: Path, out_dir: Path):
             else:
                 out["timestamp"] = ""
 
-            # --- optional: if Clicked exists, keep only positives ---
-            # Taobao-Serendipity dataset often uses 'Clicked' as implicit feedback
-            clicked_col = None
-            for c in df.columns:
-                if str(c).lower() == "clicked":
-                    clicked_col = c
-                    break
+            # --- optional: keep only positive interactions (Clicked OR Purchased) ---
+
+            def _normalize_binary(series: pd.Series) -> pd.Series:
+                # Handles: 1/0, "1", "1.0", " 1", True/False, "true"/"false", etc.
+                s = series.astype(str).str.strip()
+                num = pd.to_numeric(s, errors="coerce")
+                if num.notna().any():
+                    return (num.fillna(0) > 0).astype("int8")
+                s2 = s.str.lower()
+                return s2.isin({"1", "true", "t", "yes", "y"}).astype("int8")
+
+            def _find_col(df_cols, target_lower: str):
+                # strict match after strip/lower (works with spaces like "Purchase intention")
+                for c in df_cols:
+                    if str(c).strip().lower() == target_lower:
+                        return c
+                return None
+
+            clicked_col = _find_col(df.columns, "clicked")
+            purchased_col = _find_col(df.columns, "purchased")
+
+            mask = None
 
             if clicked_col is not None:
-                try:
-                    clicked = pd.to_numeric(df[clicked_col], errors="coerce").fillna(0)
-                    out = out.loc[clicked == 1].copy()
-                except Exception:
-                    logger.warning("Found Clicked column in %s but couldn't filter; keeping all rows.", f.name)
+                clicked = _normalize_binary(df[clicked_col])
+                logger.info("Taobao: Clicked normalized value_counts=%s", clicked.value_counts(dropna=False).to_dict())
+                mask = (clicked == 1)
 
-            # --- normalize types ---
+            if purchased_col is not None:
+                purchased = _normalize_binary(df[purchased_col])
+                logger.info("Taobao: Purchased normalized value_counts=%s", purchased.value_counts(dropna=False).to_dict())
+                mask = (purchased == 1) if mask is None else (mask | (purchased == 1))
+
+            if mask is not None:
+                positives = out.loc[mask].copy()
+
+                # больше НЕ оставляем "все строки": иначе нули превращаются в "позитив"
+                if positives.empty:
+                    raise ValueError(
+                        "Taobao: 0 positives after (Clicked OR Purchased) filtering. "
+                        "Check labels in CSV."
+                    )
+
+                if len(positives) < 5000:
+                    logger.warning(
+                        "Taobao: only %d positive interactions after (Clicked OR Purchased) filtering. "
+                        "Proceeding with positives only (metrics may be noisy).",
+                        len(positives),
+                    )
+
+                out = positives
+            else:
+                logger.warning("Taobao: no Clicked/Purchased columns found; keeping all rows (check parser).")
+
+            # --- end positives handling ---
             out["user_id"] = out["user_id"].astype(str)
             out["item_id"] = out["item_id"].astype(str)
 

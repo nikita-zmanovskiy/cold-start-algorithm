@@ -1,4 +1,4 @@
-
+import os
 import json
 import csv
 from pathlib import Path
@@ -17,7 +17,14 @@ if not logger.handlers:
 from src.evaluate import hr_at_k, ndcg_at_k
 
 RESULTS_DIR = Path("results")
-GT_PATH = Path("experiments") / "ground_truth.json"
+from .evaluation_config import get_eval_paths
+
+# default dataset for standalone eval (can be overridden by passing dataset into evaluate_* later)
+DEFAULT_DATASET = os.environ.get("COLDSTART_DATASET", "serendipity")
+_eval = get_eval_paths(DEFAULT_DATASET)
+
+GT_PATH = Path(_eval["gt"])
+SPLIT_METADATA_PATH = Path(_eval["split_meta"])
 OUT_DIR = Path("experiments")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -240,7 +247,7 @@ def evaluate_single(
 def load_split_metadata(path: Path = None):
     if path is None:
         try:
-            from .evaluation_config import SPLIT_METADATA_PATH
+            
             path = SPLIT_METADATA_PATH
         except Exception:
             path = Path(__file__).resolve().parents[1] / "experiments" / "split_metadata.json"

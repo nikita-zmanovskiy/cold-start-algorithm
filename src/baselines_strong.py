@@ -107,6 +107,9 @@ def itemknn_recommend(
 
 
 def ease_fit(X: np.ndarray, reg: float = 100.0) -> np.ndarray:
+    if X.shape[0] == 0 or X.shape[1] == 0:
+        logger.warning("EASE: empty training matrix (%s x %s). Skipping fit.", X.shape[0], X.shape[1])
+        return None
     n_items = X.shape[1]
 
     G = X.T.reshape(n_items, -1) @ X  
