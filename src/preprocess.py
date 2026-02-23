@@ -200,12 +200,74 @@ def prepare_taobao(src_dir: Path, out_dir: Path):
 
     if not written and not (out_dir / "interactions_taobao.csv").exists():
         logger.warning("No interactions-like CSV/TSV in Taobao folder (%s); skipping.", src_dir)
-def run_all():
 
-    seren_path = DATA_DIR / "serendipity-sac2018"
-    taobao_path = DATA_DIR / "Taobao-Serendipity-Dataset-master"
-    prepare_serendipity2018(seren_path, PROCESSED_DIR)
-    prepare_taobao(taobao_path, PROCESSED_DIR)
+def prepare_movielens25m(min_rating: float = 4.0):
+    logger.info("Preparing MovieLens-25M...")
+    ml_dir = DATA_DIR / "movieLens" / "ml-25m"
+
+    ratings_path = ml_dir / "ratings.csv"
+    movies_path = ml_dir / "movies.csv"
+
+    if not ratings_path.exists() or not movies_path.exists():
+        logger.warning(f"MovieLens not found at {ml_dir}. Expected ratings.csv and movies.csv")
+        return
+
+    # Read only required columns to reduce RAM usage
+    ratings = pd.read_csv(
+        ratings_path,
+        usecols=["userId", "movieId", "rating", "timestamp"],
+        dtype={"userId": "int32", "movieId": "int32", "rating": "float32", "timestamp": "int64"},
+    )
+
+    # Keep only positive interactions (implicit)
+    ratings = ratings[ratings["rating"] >= float(min_rating)].copy()
+
+    ratings.rename(columns={"userId": "user_id", "movieId": "item_id"}, inplace=True)
+    ratings["user_id"] = ratings["user_id"].astype(str)
+    ratings["item_id"] = ratings["item_id"].astype(str)
+
+    interactions = ratings[["user_id", "item_id", "timestamp", "rating"]]
+    out_inter = PROCESSED_DIR / "interactions_movielens.csv"
+    interactions.to_csv(out_inter, index=False)
+    logger.info(f"Wrote interactions_movielens.csv, shape={interactions.shape}")
+
+    movies = pd.read_csv(movies_path, usecols=["movieId", "title", "genres"])
+    movies.rename(columns={"movieId": "item_id"}, inplace=True)
+    movies["item_id"] = movies["item_id"].astype(str)
+    movies["title"] = movies["title"].fillna("").astype(str)
+    movies["genres"] = movies["genres"].fillna("").astype(str)
+
+    # Make a robust text field for embeddings/enrichment
+    movies["text"] = movies["title"] + " Genres: " + movies["genres"]
+
+    items = movies[["item_id", "title", "genres", "text"]]
+    out_items = PROCESSED_DIR / "items_movielens.csv"
+    items.to_csv(out_items, index=False)
+    logger.info(f"Wrote items_movielens.csv, shape={items.shape}")
+
+
+def run_all(datasets=None):
+    """
+    datasets:
+      - None -> preprocess all supported datasets
+      - str  -> preprocess only that dataset
+      - list[str] -> preprocess listed datasets
+    """
+    if datasets is None:
+        datasets = ["serendipity", "taobao", "movielens"]
+    elif isinstance(datasets, str):
+        datasets = [datasets]
+
+    ds = {d.lower() for d in datasets}
+
+    if "serendipity" in ds:
+        seren_path = DATA_DIR / "serendipity-sac2018"
+        prepare_serendipity2018(seren_path, PROCESSED_DIR)
+    if "taobao" in ds:
+        taobao_path = DATA_DIR / "Taobao-Serendipity-Dataset-master"
+        prepare_taobao(taobao_path, PROCESSED_DIR)
+    if "movielens" in ds:
+        prepare_movielens25m()
     logger.info("Preprocessing finished. Check data/processed/ for outputs.")
 
 if __name__ == "__main__":

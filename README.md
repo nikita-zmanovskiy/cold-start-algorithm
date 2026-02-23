@@ -1,6 +1,9 @@
 ````markdown
 # Cold-Start Algorithm (Retrieval + LLM/Reranking Experiments)
 
+https://files.grouplens.org/datasets/movielens/ml-25m.zip
+
+
 > **One-command fast run (start here):**
 ```bash
 python -m tools.full_pipeline --clean --fast --rebuild-gt

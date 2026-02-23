@@ -107,9 +107,8 @@ def run_experiment(
     set_seed(seed)
     
 
-    run_all()
-    
     dataset_key = (config.get("dataset", dataset) or "serendipity").lower()
+    run_all(datasets=[dataset_key])
     # --- Dataset-specific eval files (train/gt/split_meta) ---
     # 
     paths = get_eval_paths(dataset_key)
@@ -121,7 +120,14 @@ def run_experiment(
         config["ground_truth_path"] = str(paths["gt"])
     if not config.get("split_metadata_path"):
         config["split_metadata_path"] = str(paths["split_meta"])
-    suffix = "taobao" if dataset_key.startswith("taobao") else "serendipity"
+
+    if dataset_key.startswith("taobao"):
+        suffix = "taobao"
+    elif dataset_key.startswith("movielens") or dataset_key.startswith("ml") or "movie" in dataset_key:
+        suffix = "movielens"
+    else:
+        suffix = "serendipity"
+    # suffix = "taobao" if dataset_key.startswith("taobao") else "serendipity"
 
     items_csv = PROCESSED_DIR / f"items_{suffix}.csv"
 
@@ -149,7 +155,7 @@ def run_experiment(
                 )
                 # освобождаем массив, чтобы Windows точно отпустил файл
                 del emb
-                import gc, time
+                import gc
                 gc.collect()
                 time.sleep(0.2)
 

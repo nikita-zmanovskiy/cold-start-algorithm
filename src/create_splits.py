@@ -13,6 +13,7 @@ from .evaluation_config import (
     INTERACTION_BUCKETS,
     get_eval_paths,
     get_default_raw_interactions_csv,
+    _ds_key,
 )
 
 from .utils import logger
@@ -104,6 +105,56 @@ def split_random(
     return train, val, test
 
 
+def split_leave_last_out(
+    rows: List[Dict[str, Any]],
+    min_user_interactions: int = 1,
+) -> Tuple[List[Dict], List[Dict], List[Dict]]:
+    """
+    Leave-one-out per user:
+      - last interaction -> test
+      - penultimate -> val
+      - rest -> train
+    Only keep users in val/test if they have at least `min_user_interactions`
+    interactions in train.
+    """
+    by_user: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for r in rows:
+        uid = str(r["user_id"])
+        by_user[uid].append(r)
+
+    train: List[Dict[str, Any]] = []
+    val: List[Dict[str, Any]] = []
+    test: List[Dict[str, Any]] = []
+
+    for uid, urows in by_user.items():
+        if not urows:
+            continue
+        # sort by timestamp (if present)
+        with_ts = [(r, _parse_ts(r.get("timestamp"))) for r in urows]
+        with_ts.sort(key=lambda x: (x[1] is None, x[1] or 0))
+        ordered = [r for r, _ in with_ts]
+        n = len(ordered)
+        if n == 1:
+            # Only one interaction – goes to test, but this user will be
+            # filtered out from test if min_user_interactions > 0 (no train).
+            train_rows: List[Dict[str, Any]] = []
+            val_row = None
+            test_row = ordered[-1]
+        else:
+            test_row = ordered[-1]
+            val_row = ordered[-2] if n >= 2 else None
+            train_rows = ordered[:-2] if n > 2 else []
+
+        train.extend(train_rows)
+        # keep user in val/test only if enough train interactions
+        if len(train_rows) >= max(0, min_user_interactions):
+            if val_row is not None:
+                val.append(val_row)
+            test.append(test_row)
+
+    return train, val, test
+
+
 def build_splits(
     interactions_path: Path,
     dataset: str = "serendipity",
@@ -137,16 +188,32 @@ def build_splits(
     if not rows:
         raise SystemExit(f"No rows loaded from {interactions_path}")
 
-    if by_time is None:
-        by_time = (SPLIT_METHOD == "time_based")
-    
-    logger.info("Split method: %s (by_time=%s)", SPLIT_METHOD, by_time)
-    
-    split_ratios = ratios if ratios is not None else SPLIT_RATIOS
-    if by_time:
-        train, val, test = split_by_time(rows, ratios=split_ratios)
+    ds_key = _ds_key(dataset)
+
+    # For MovieLens, use per-user leave-one-out splitting:
+    # last -> test, penultimate -> val, rest -> train; then filter test users
+    # so that everyone in test has at least 1 train interaction.
+    if ds_key == "movielens":
+        min_user_interactions = 1
+        logger.info(
+            "Using leave-one-out split for MovieLens (min_user_interactions_in_train=%d)",
+            min_user_interactions,
+        )
+        train, val, test = split_leave_last_out(
+            rows,
+            min_user_interactions=min_user_interactions,
+        )
     else:
-        train, val, test = split_random(rows, ratios=split_ratios, seed=seed)
+        if by_time is None:
+            by_time = (SPLIT_METHOD == "time_based")
+        
+        logger.info("Split method: %s (by_time=%s)", SPLIT_METHOD, by_time)
+        
+        split_ratios = ratios if ratios is not None else SPLIT_RATIOS
+        if by_time:
+            train, val, test = split_by_time(rows, ratios=split_ratios)
+        else:
+            train, val, test = split_random(rows, ratios=split_ratios, seed=seed)
 
     train_items = set(r["item_id"] for r in train)
 
@@ -243,7 +310,10 @@ def build_splits(
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser(description="Create standardized train/val/test splits for cold-start evaluation.")
-    p.add_argument("--dataset", default="serendipity", choices=["serendipity", "taobao"])
+    p.add_argument("--dataset", default="serendipity", choices=["serendipity", "taobao", "movielens"])
+    p.add_argument("--method", type=str, default="time_based",
+                    choices=["time_based", "leave_last_out"])
+    p.add_argument("--min_user_interactions", type=int, default=5)
     p.add_argument("--csv", default=None, help="Path to interactions CSV (optional; defaults per dataset)")
     p.add_argument("--by-time", action="store_true", default=True, help="Split by timestamp (default: True)")
     p.add_argument("--random", action="store_true", help="Split randomly instead of by time")

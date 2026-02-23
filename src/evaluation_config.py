@@ -47,7 +47,11 @@ EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 
 def _ds_key(dataset: str) -> str:
     d = (dataset or "serendipity").lower()
-    return "taobao" if d.startswith("taobao") else "serendipity"
+    if d.startswith("taobao"):
+        return "taobao"
+    if d.startswith("movielens") or d.startswith("ml") or "movie" in d:
+        return "movielens"
+    return "serendipity"
 
 
 def get_eval_paths(dataset: str = "serendipity") -> dict:
@@ -72,4 +76,8 @@ def get_default_raw_interactions_csv(dataset: str = "serendipity") -> Path:
     if ds == "taobao":
         # Produced by preprocess.py
         return PROCESSED_DIR / "interactions_taobao.csv"
+    if ds == "movielens":
+        # Produced by preprocess.py
+        return PROCESSED_DIR / "interactions_movielens.csv"
+
     return DATA_DIR / "serendipity-sac2018" / "training.csv"

@@ -32,6 +32,7 @@ from src.evaluation_config import (
     FAST_SEEDS,
     FAST_POOL_SIZES,
     ABLATION_POOL_SIZES,
+    get_eval_paths,
 )
 
 
@@ -87,13 +88,15 @@ def main():
             return
         print("Cleanup done. Starting pipeline.\n")
 
-    gt_path = project_root / "experiments" / "ground_truth.json"
-    split_train_out = project_root / "experiments" / "training_interactions.csv"
+    # Dataset-aware paths for Serendipity (match evaluation_config / run_experiment)
+    ser_paths = get_eval_paths("serendipity")
+    gt_path = ser_paths["gt"]
+    split_train_out = ser_paths["train"]
     if not args.skip_experiments and (args.rebuild_gt or not gt_path.exists()):
         if args.rebuild_gt and gt_path.exists():
-            print("Rebuilding ground_truth.json (--rebuild-gt)...")
+            print(f"Rebuilding {gt_path.name} (--rebuild-gt)...")
         else:
-            print("experiments/ground_truth.json not found. Creating standardized splits + GT (no leakage)...")
+            print(f"{gt_path} not found. Creating standardized splits + GT (no leakage)...")
         
            # (optional but recommended) run preprocess to produce data/processed/interactions_taobao.csv
         preprocess_res = subprocess.run([sys.executable, "-m", "src.preprocess"], cwd=project_root)
@@ -112,7 +115,7 @@ def main():
         )
 
         if ensure_gt_ser.returncode != 0 or not gt_path.exists():
-            print("[ERROR] Could not create ground_truth.json via create_splits (serendipity).")
+            print(f"[ERROR] Could not create {gt_path.name} via create_splits (serendipity).")
             print("Please create/restore it manually and re-run.")
             return
 
@@ -149,6 +152,40 @@ def main():
             print("Taobao ground_truth_taobao.json created via create_splits.\n")
         else:
             print("[WARN] data/processed/interactions_taobao.csv not found -> skipping Taobao GT/splits.\n")
+
+            # --- 3) MovieLens: build GT + splits (only if interactions exist) ---
+        movielens_csv = project_root / "data" / "processed" / "interactions_movielens.csv"
+        gt_path_movielens = project_root / "experiments" / "ground_truth_movielens.json"
+        split_train_out_movielens = project_root / "experiments" / "training_interactions_movielens.csv"
+        split_val_out_movielens = project_root / "experiments" / "val_interactions_movielens.csv"
+        split_test_out_movielens = project_root / "experiments" / "test_interactions_movielens.csv"
+        split_meta_out_movielens = project_root / "experiments" / "split_metadata_movielens.json"
+
+        if movielens_csv.exists():
+            ensure_gt_ml = subprocess.run(
+                [
+                    sys.executable, "-m", "src.create_splits",
+                    "--csv", str(movielens_csv),
+                    # НЕ ставим --random: у MovieLens есть нормальный timestamp
+                    "--out-train", str(split_train_out_movielens),
+                    "--out-val", str(split_val_out_movielens),
+                    "--out-test", str(split_test_out_movielens),
+                    "--out-gt", str(gt_path_movielens),
+                    "--out-meta", str(split_meta_out_movielens),
+                ],
+                cwd=project_root,
+            )
+
+            if ensure_gt_ml.returncode != 0 or not gt_path_movielens.exists():
+                print("[ERROR] Could not create MovieLens GT/splits via create_splits.")
+                print("MovieLens experiments will likely fail until this is fixed.")
+                return
+
+            print("MovieLens ground_truth_movielens.json created via create_splits.\n")
+        else:
+            print("[WARN] data/processed/interactions_movielens.csv not found -> skipping MovieLens GT/splits.\n")
+
+
     elif not args.skip_experiments and gt_path.exists():
 
         try:
@@ -160,6 +197,9 @@ def main():
                 print("       If you see HR@10≈1.0 everywhere, rebuild GT: python -m tools.full_pipeline --rebuild-gt --fast")
         except Exception:
             pass
+
+    
+
 
     fast = args.fast
     n_users = str(N_FAST_USERS) if fast else str(N_TEST_USERS)
@@ -191,6 +231,14 @@ def main():
         (
             "2b) Run sanity check baselines on Taobao",
             ["python", "-m", "src.run_all_experiments", "--sanity-only", "--n-users", n_users] + seeds_arg + ["--dataset", "taobao"],
+        ),
+        (
+            "2c) Run main experiments on MovieLens",
+            ["python", "-m", "src.run_all_experiments", "--n-users", n_users] + seeds_arg + ["--dataset", "movielens"],
+        ),
+        (
+            "2d) Run sanity check baselines on MovieLens",
+            ["python", "-m", "src.run_all_experiments", "--sanity-only", "--n-users", n_users] + seeds_arg + ["--dataset", "movielens"],
         ),
         (
             "3) Retrieval + pool-size ablation (ANN / BM25 / hybrid)",

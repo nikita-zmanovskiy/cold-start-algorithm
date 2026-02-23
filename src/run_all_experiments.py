@@ -159,7 +159,7 @@ def main():
         "--dataset",
         type=str,
         default="serendipity",
-        choices=["serendipity", "taobao"],
+        choices=["serendipity", "taobao", "movielens"],
         help="Dataset key (controls ground-truth selection and tagging).",
     )
     
