@@ -99,7 +99,7 @@ def run_experiment(
             },
             **config,
         }
-    
+    run_meta = {}
     from .evaluation_config import N_TEST_USERS, get_eval_paths
     if n_users is None:
         n_users = N_TEST_USERS
@@ -738,8 +738,7 @@ def run_experiment(
     
             debias_stats = getattr(reranker, "_last_debias_stats", {})
             if debias_stats:
-                if "debias_stats" not in run_meta:
-                    run_meta["debias_stats"] = []
+                run_meta.setdefault("debias_stats", [])
                 run_meta["debias_stats"].append({
                     "user_id": uid,
                     **debias_stats

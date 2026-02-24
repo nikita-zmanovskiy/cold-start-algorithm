@@ -364,4 +364,14 @@ def diversify(
 
 
     out = _list_to_scored(lst[:topk], reason="diversified")
+
+    # IMPORTANT: For MMR/xQuAD/fairness, the list order is a greedy selection order,
+    # so relevance scores are not guaranteed to be monotonic.
+    # Keep original relevance in a separate field and set a rank-based monotonic score.
+    if stats.get("reordered") or fairness:
+        n = len(out)
+        for rank, rec in enumerate(out):
+            rec["relevance"] = float(rec.get("score", 0.0))
+            rec["score"] = float(n - rank)  # strictly non-increasing, preserves ranking order
+
     return out, stats
