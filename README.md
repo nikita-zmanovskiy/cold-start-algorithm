@@ -165,7 +165,7 @@ You can also use the provided `CITATION.cff`.
 
 ## License
 
-See `LICENSE` (if present in the repository).
+See `LICENSE`
 
 [1]: https://raw.githubusercontent.com/nikita-zmanovskiy/cold-start-algorithm/master/src/preprocess.py "raw.githubusercontent.com"
 [2]: https://raw.githubusercontent.com/nikita-zmanovskiy/cold-start-algorithm/master/tools/full_pipeline.py "raw.githubusercontent.com"
