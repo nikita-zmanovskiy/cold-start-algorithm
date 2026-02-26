@@ -1,165 +1,172 @@
 ````markdown
-# Cold-Start Algorithm (Retrieval + LLM/Reranking Experiments)
+# cold-start-algorithm
 
-https://files.grouplens.org/datasets/movielens/ml-25m.zip
+End-to-end, reproducible evaluation pipeline for recommendation algorithms in **cold-start** and **few-shot personalization** settings.  
+The project focuses on accuracy (HR@K, nDCG@K, MRR, MAP) *and* beyond-accuracy properties such as serendipity/novelty, catalog coverage, and exposure bias.
 
+## TL;DR (Quickstart)
 
-> **One-command fast run (start here):**
+1) Download datasets and place them into `data/` (see **Datasets**).  
+2) Install dependencies (`requirements.txt`).  
+3) Run the full pipeline:
+
 ```bash
 python -m tools.full_pipeline --clean --fast --rebuild-gt
 ````
-
-This repository provides an end-to-end pipeline for cold-start evaluation: preprocessing, dataset splits, ground-truth construction, retrieval/reranking experiments, and result aggregation.
 
 ---
 
 ## Requirements
 
-* **Python 3.12.7** (used for development)
-* Recommended: `venv` (or conda)
+* Python **3.12.7** (used during development)
+* `pip`
+* OS: Linux / macOS / Windows (WSL recommended if you run into dependency issues)
+
+---
+
+## Installation
+
+Clone the repository and create a virtual environment:
+
+```bash
+git clone https://github.com/nikita-zmanovskiy/cold-start-algorithm
+cd cold-start-algorithm
+```
 
 Install dependencies:
 
 ```bash
-python -m venv .venv
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
-
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
 ---
 
-## What the fast pipeline does
+## Datasets
 
-Running:
+You need to download 3 datasets and place them into specific folders **inside this repository**.
+
+### 1) MovieLens 25M
+
+* Download: [https://files.grouplens.org/datasets/movielens/ml-25m.zip](https://files.grouplens.org/datasets/movielens/ml-25m.zip)
+* Unpack to: `data/movieLens/ml-25m/`
+
+Expected files (at minimum):
+
+* `data/movieLens/ml-25m/ratings.csv`
+* `data/movieLens/ml-25m/movies.csv`
+
+Example (Linux/macOS):
+
+```bash
+mkdir -p data/movieLens
+unzip /path/to/ml-25m.zip -d data/movieLens
+# This should create: data/movieLens/ml-25m/...
+```
+
+### 2) Serendipity-2018 (SAC 2018)
+
+* Download page: [https://grouplens.org/datasets/serendipity-2018/](https://grouplens.org/datasets/serendipity-2018/)
+* Unpack to: `data/serendipity-sac2018/`
+
+Example layout:
+
+```text
+data/serendipity-sac2018/
+  (dataset files as provided by GroupLens)
+```
+
+> Note: The Serendipity dataset download may require following the instructions on the official dataset page.
+
+### 3) Taobao-Serendipity
+
+* Source: [https://github.com/greenblue96/Taobao-Serendipity-Dataset](https://github.com/greenblue96/Taobao-Serendipity-Dataset)
+* Put into: `data/Taobao-Serendipity-Dataset-master/`
+
+Option A (recommended): clone directly into the target folder
+
+```bash
+mkdir -p data
+git clone https://github.com/greenblue96/Taobao-Serendipity-Dataset data/Taobao-Serendipity-Dataset-master
+```
+
+Option B: download ZIP from GitHub and unpack it so the final folder name is:
+
+```text
+data/Taobao-Serendipity-Dataset-master/
+```
+
+---
+
+## Reproducing Results
+
+### Run the end-to-end pipeline (recommended)
+
+From the repository root:
 
 ```bash
 python -m tools.full_pipeline --clean --fast --rebuild-gt
 ```
 
-will:
+What the flags mean:
 
-1. Clean previously generated artifacts (when `--clean` is enabled)
-2. Preprocess datasets and write normalized files to `data/processed/`
-3. Create train/val/test splits + cold-start segments
-4. Build / rebuild ground truth (when `--rebuild-gt` is enabled)
-5. Run a small, quick experiment subset (`--fast`) to validate everything works end-to-end
-6. Save logs and results into `experiments/`
+* `--clean`
+  Starts from a clean state (removes/overwrites prior artifacts so results are reproducible).
 
----
+* `--fast`
+  Runs a **faster sanity-check** configuration (smaller evaluation setup) so you can verify everything works end-to-end.
 
-## Data layout
+* `--rebuild-gt`
+  Rebuilds ground-truth / splits artifacts required for evaluation.
 
-### Serendipity-2018 (required)
+### Full (slow) reproduction
 
-Place the raw interactions CSV here:
+If you want a heavier run (more exhaustive than `--fast`), run without `--fast`:
 
+```bash
+python -m tools.full_pipeline --clean --rebuild-gt
 ```
-data/serendipity-sac2018/training.csv
-```
-
-After preprocessing, the pipeline creates:
-
-* `data/processed/items_serendipity.csv`
-* `data/processed/interactions_serendipity.csv`
-
-### Taobao-Serendipity (optional)
-
-If you want to run Taobao experiments, place the dataset folder here:
-
-```
-data/Taobao-Serendipity-Dataset-master/
-```
-
-After preprocessing (if files are found and parsed), the pipeline creates:
-
-* `data/processed/items_taobao.csv`
-* `data/processed/interactions_taobao.csv`
-
-If Taobao is not present, Serendipity still runs.
 
 ---
 
 ## Outputs
 
-After running the pipeline, check:
+After the pipeline finishes, the project will write artifacts such as:
 
-### `experiments/`
+* run logs / per-run metrics (e.g., `runs.jsonl`)
+* aggregated results tables (CSV/JSON)
+* figures/plots for analysis
 
-Typical outputs:
-
-* `training_interactions_*.csv`
-* `val_interactions_*.csv`
-* `test_interactions_*.csv`
-* `ground_truth_*.json`
-* `split_metadata_*.json`
-* `runs.jsonl` (main experiment log)
-
-### `data/processed/`
-
-* normalized interactions and items CSVs used by the pipeline
-
----
-
-## Cold-start scenarios
-
-Splits support the following cold-start segments:
-
-* `new_users`: users with zero train interactions
-* `new_items`: interactions with items not seen in train
-* `both`: new users interacting with new items
-
----
-
-## Useful commands
-
-### Preprocess only
-
-```bash
-python -m src.preprocess
-```
-
-### Build splits + ground truth
-
-```bash
-python -m src.create_splits --dataset serendipity --csv data/serendipity-sac2018/training.csv
-# Optional (Taobao)
-python -m src.create_splits --dataset taobao --csv data/processed/interactions_taobao.csv --random
-```
-
-### Run experiments directly
-
-```bash
-python -m src.run_all_experiments --dataset serendipity --n-users 500 --seeds 42
-```
+(Exact output paths are defined by the pipeline scripts.)
 
 ---
 
 ## Troubleshooting
 
-### `FileNotFoundError: data/processed/interactions_taobao.csv`
+### “File not found” for datasets
 
-Taobao dataset is missing or preprocessing did not generate the file.
+Double-check the folder names and paths are exactly:
 
-* Ensure Taobao files exist under `data/Taobao-Serendipity-Dataset-master/`
-* Or run Serendipity only.
+```text
+data/movieLens/ml-25m/...
+data/serendipity-sac2018/...
+data/Taobao-Serendipity-Dataset-master/...
+```
 
-### Installation issues on Windows (FAISS / Torch)
+## Citation
 
-Some combinations of Python version + platform can cause install friction for heavy deps.
-If needed:
+If you use this codebase in academic work, please cite:
 
-* use a clean venv
-* try a different compatible Python (3.10/3.11)
-* or adjust experiment settings to avoid components that require problematic packages
+* Zenodo DOI: [https://doi.org/10.5281/zenodo.18772321](https://doi.org/10.5281/zenodo.18772321)
+
+You can also use the provided `CITATION.cff`.
 
 ---
 
 ## License
 
-MIT License — see `LICENSE`.
+See `LICENSE` (if present in the repository).
 
-```
-::contentReference[oaicite:0]{index=0}
-```
+[1]: https://raw.githubusercontent.com/nikita-zmanovskiy/cold-start-algorithm/master/src/preprocess.py "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/nikita-zmanovskiy/cold-start-algorithm/master/tools/full_pipeline.py "raw.githubusercontent.com"
+[3]: https://raw.githubusercontent.com/nikita-zmanovskiy/cold-start-algorithm/master/CITATION.cff "raw.githubusercontent.com"
