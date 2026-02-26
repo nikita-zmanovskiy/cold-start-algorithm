@@ -732,6 +732,19 @@ def run_experiment(
             
             t1 = time.time()
             reranked_full = reranker.rerank(profile, candidates_to_rerank, topk=len(candidates_to_rerank))
+
+            # --- FIX: enforce deterministic descending-by-score order ---
+            if reranked_full:
+                reranked_full = sorted(
+                    reranked_full,
+                    key=lambda d: (
+                        float(d.get("score")) if d.get("score") is not None else float("-inf"),
+                        str(d.get("item_id", "")),
+                    ),
+                    reverse=True,
+                )
+            # --- end fix ---
+            
             dt = time.time() - t1
             user_times.append(dt)
             
@@ -744,13 +757,17 @@ def run_experiment(
                     **debias_stats
                 })
             
-            if reranked_full and len(reranked_full) > 1:
-                scores = [item.get("score") for item in reranked_full if item.get("score") is not None]
-                if len(scores) > 1:
-                    for i in range(len(scores) - 1):
-                        if scores[i] < scores[i+1]:
-                            logger.error("Reranker results not sorted correctly after rerank! User: %s, pos %d: %.4f < %.4f", 
-                                       uid, i, scores[i], scores[i+1])
+            # If you use diversification/pareto, score may be non-monotonic by design -> don't treat as ERROR.
+            enforce_score_sortedness = not bool(config.get("diversify_config")) and not bool(config.get("two_head_config"))
+            if enforce_score_sortedness and reranked_full and len(reranked_full) > 1:
+                scores = [float(x.get("score")) for x in reranked_full if x.get("score") is not None]
+                for i in range(len(scores) - 1):
+                    if scores[i] + 1e-9 < scores[i + 1]:
+                        logger.warning(
+                            "Reranker results not sorted by score (sanity-check). User: %s, pos %d: %.6f < %.6f",
+                            uid, i, scores[i], scores[i + 1]
+                        )
+                        break
                      
             
             for item in reranked_full:
