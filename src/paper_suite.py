@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 import numpy as np
+from .stats import paired_bootstrap_test
 
 from .run_experiment import run_with_logging
 from .evaluation_config import get_eval_paths
@@ -30,7 +31,9 @@ def load_run_record(run_id: str, runs_log: Path = RUNS_LOG) -> Dict[str, Any]:
 
 
 def read_per_user_csv(run_id: str) -> Dict[str, Dict[str, float]]:
-    p = EXPERIMENTS_DIR / f"{run_id}_per_user.csv"
+    p = EXPERIMENTS_DIR / f"{run_id}_per_user_metrics.csv"
+    if not p.exists():
+        p = EXPERIMENTS_DIR / f"{run_id}_per_user.csv"
     if not p.exists():
         return {}
     out = {}
@@ -52,36 +55,6 @@ def read_per_user_csv(run_id: str) -> Dict[str, Dict[str, float]]:
                 "map": fnum(row.get("map@10") or row.get("map")),
             }
     return out
-
-
-def paired_bootstrap_pvalue(
-    a: Dict[str, Dict[str, float]],
-    b: Dict[str, Dict[str, float]],
-    key: str = "ndcg",
-    n_boot: int = 2000,
-    seed: int = 0,
-) -> Dict[str, float]:
-    users = sorted(set(a.keys()) & set(b.keys()))
-    if not users:
-        return {"mean_diff": 0.0, "ci_lo": 0.0, "ci_hi": 0.0, "p_one_sided": 1.0}
-
-    diffs = np.array([a[u][key] - b[u][key] for u in users], dtype=float)
-    mean_diff = float(diffs.mean())
-
-    rng = np.random.default_rng(seed)
-    boots = []
-    n = len(diffs)
-    for _ in range(n_boot):
-        idx = rng.integers(0, n, size=n)
-        boots.append(float(diffs[idx].mean()))
-    boots = np.array(boots, dtype=float)
-
-    ci_lo = float(np.percentile(boots, 2.5))
-    ci_hi = float(np.percentile(boots, 97.5))
-
-    # one-sided: P(diff <= 0) under bootstrap
-    p_one_sided = float(np.mean(boots <= 0.0))
-    return {"mean_diff": mean_diff, "ci_lo": ci_lo, "ci_hi": ci_hi, "p_one_sided": p_one_sided}
 
 
 def run_fewshot_curve(
@@ -117,11 +90,11 @@ def run_fewshot_curve(
                 "cap": cap,
                 "method": "ours",
                 "hr_mean": (m.get("hr@10") or {}).get("mean"),
-                "hr_ci_lo": (m.get("hr@10") or {}).get("ci_95_lower"),
-                "hr_ci_hi": (m.get("hr@10") or {}).get("ci_95_upper"),
+                "hr_ci_lo": (m.get("hr@10") or {}).get("ci95_low"),
+                "hr_ci_hi": (m.get("hr@10") or {}).get("ci95_high"),
                 "ndcg_mean": (m.get("ndcg@10") or {}).get("mean"),
-                "ndcg_ci_lo": (m.get("ndcg@10") or {}).get("ci_95_lower"),
-                "ndcg_ci_hi": (m.get("ndcg@10") or {}).get("ci_95_upper"),
+                "ndcg_ci_lo": (m.get("ndcg@10") or {}).get("ci95_low"),
+                "ndcg_ci_hi": (m.get("ndcg@10") or {}).get("ci95_high"),
                 "mrr_mean": (m.get("mrr@10") or {}).get("mean"),
                 "map_mean": (m.get("map@10") or {}).get("mean"),
                 "n_users_logged": (rec.get("diagnostics") or {}).get("n_users"),
@@ -143,8 +116,19 @@ def run_fewshot_curve(
                 A = read_per_user_csv(run_id)     # ours
                 B = read_per_user_csv(run_id_b)   # baseline
 
-                sig_ndcg = paired_bootstrap_pvalue(A, B, key="ndcg", seed=seed)
-                sig_hr = paired_bootstrap_pvalue(A, B, key="hr", seed=seed)
+                users = sorted(set(A.keys()) & set(B.keys()))
+                sig_ndcg = paired_bootstrap_test(
+                    [A[u]["ndcg"] for u in users],
+                    [B[u]["ndcg"] for u in users],
+                    n_boot=2000,
+                    seed=seed,
+                )
+                sig_hr = paired_bootstrap_test(
+                    [A[u]["hr"] for u in users],
+                    [B[u]["hr"] for u in users],
+                    n_boot=2000,
+                    seed=seed,
+                )
 
                 out_rows.append({
                     "run_id": run_id_b,
@@ -155,12 +139,12 @@ def run_fewshot_curve(
                     "hr_mean": load_run_record(run_id_b).get("metrics", {}).get("hr@10", {}).get("mean"),
                     "ndcg_mean": load_run_record(run_id_b).get("metrics", {}).get("ndcg@10", {}).get("mean"),
                     "paired_ndcg_mean_diff": sig_ndcg["mean_diff"],
-                    "paired_ndcg_ci_lo": sig_ndcg["ci_lo"],
-                    "paired_ndcg_ci_hi": sig_ndcg["ci_hi"],
+                    "paired_ndcg_ci_lo": sig_ndcg["ci95_low"],
+                    "paired_ndcg_ci_hi": sig_ndcg["ci95_high"],
                     "paired_ndcg_p_one_sided": sig_ndcg["p_one_sided"],
                     "paired_hr_mean_diff": sig_hr["mean_diff"],
-                    "paired_hr_ci_lo": sig_hr["ci_lo"],
-                    "paired_hr_ci_hi": sig_hr["ci_hi"],
+                    "paired_hr_ci_lo": sig_hr["ci95_low"],
+                    "paired_hr_ci_hi": sig_hr["ci95_high"],
                     "paired_hr_p_one_sided": sig_hr["p_one_sided"],
                 })
 

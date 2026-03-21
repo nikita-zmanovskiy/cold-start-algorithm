@@ -8,6 +8,7 @@ import torch
 from .utils import logger
 from .rerank_diversify import diversify, _item_pop_rank_from_meta
 from .rerank_two_head import novelty_from_pop_rank, combine_relevance_novelty, select_pareto_balanced
+from .vark_simulator import preference_match_score
 
 
 MAX_QUERY_CHARS = 300  
@@ -165,6 +166,18 @@ class CrossReranker:
         scored = list(zip(ids, scores))
 
         scored_with_original_rank = [(id, score, orig_idx) for orig_idx, (id, score) in enumerate(scored)]
+        prior_mode = (user_profile.get("preference_prior_mode") or "prior_plus_context").strip().lower()
+        if prior_mode != "no_prior":
+            boosted = []
+            for cid, score, orig_idx in scored_with_original_rank:
+                meta = self.items.get(str(cid), {})
+                pref_bonus = preference_match_score(
+                    user_profile,
+                    meta,
+                    use_context=(prior_mode == "prior_plus_context"),
+                )
+                boosted.append((cid, float(score) + 0.15 * float(pref_bonus), orig_idx))
+            scored_with_original_rank = boosted
         scored_with_original_rank.sort(key=lambda x: (x[1], -x[2]), reverse=True) 
         scored = [(id, score) for id, score, _ in scored_with_original_rank]
         out = []

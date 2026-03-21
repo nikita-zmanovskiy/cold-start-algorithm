@@ -1,257 +1,195 @@
+import csv
 import json
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Any, Tuple
-import numpy as np
-from scipy import stats
 
-AGGREGATED_JSON = Path("experiments") / "aggregated_results.json"
+import numpy as np
+
+from src.stats import bootstrap_ci, paired_bootstrap_test, paired_permutation_test, adjust_pvalues
+
 RUNS_LOG_PATH = Path("experiments") / "runs.jsonl"
 OUTPUT_DIR = Path("experiments") / "stat_tests"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def load_runs() -> List[Dict[str, Any]]:
+def _load_runs() -> List[Dict[str, Any]]:
     if not RUNS_LOG_PATH.exists():
         return []
-    
-    runs = []
+    out = []
     with open(RUNS_LOG_PATH, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if line:
-                try:
-                    runs.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-    return runs
-
-
-def get_model_key(run: Dict[str, Any]) -> str:
-    config = run.get("config", {})
-    baseline = config.get("baseline")
-    use_reranker = config.get("use_reranker", False)
-    
-    if baseline:
-        return baseline
-    elif use_reranker:
-        return "ours_with_reranker"
-    else:
-        return "candidates_only"
-
-
-def extract_per_user_metrics(runs: List[Dict[str, Any]], model_key: str, metric: str = "hr@10") -> Dict[str, List[float]]:
-    seed_metrics = {}
-    
-    for run in runs:
-        if get_model_key(run) != model_key:
-            continue
-        
-        seed = run.get("config", {}).get("seed")
-        if seed is None:
-            continue
-        
-        run_id = run.get("run_id")
-        if not run_id:
-            continue
-        
-        csv_path = Path("experiments") / f"{run_id}_per_user.csv"
-        if not csv_path.exists():
-            metrics = run.get("metrics", {})
-            metric_data = metrics.get(metric, {})
-            if isinstance(metric_data, dict):
-                mean_val = metric_data.get("mean")
-                if mean_val is not None:
-                    seed_metrics[seed] = [mean_val] * run.get("config", {}).get("n_users", 500)
-            continue
-        
-        import csv as csv_module
-        per_user_vals = []
-        try:
-            with open(csv_path, "r", encoding="utf-8") as f:
-                reader = csv_module.DictReader(f)
-                for row in reader:
-                    val = row.get(metric, 0.0)
-                    try:
-                        per_user_vals.append(float(val))
-                    except (ValueError, TypeError):
-                        continue
-            if per_user_vals:
-                seed_metrics[seed] = per_user_vals
-        except Exception as e:
-            print(f"Warning: Could not load {csv_path}: {e}")
-            continue
-    
-    return seed_metrics
-
-
-def paired_test(model1_metrics: Dict[str, List[float]], 
-                model2_metrics: Dict[str, List[float]],
-                metric_name: str = "HR@10") -> Dict[str, Any]:
-    common_seeds = set(model1_metrics.keys()) & set(model2_metrics.keys())
-    if not common_seeds:
-        return {"error": "No common seeds found"}
-    
-    all_model1 = []
-    all_model2 = []
-    
-    for seed in common_seeds:
-        m1_vals = model1_metrics[seed]
-        m2_vals = model2_metrics[seed]
-        
-        min_len = min(len(m1_vals), len(m2_vals))
-        all_model1.extend(m1_vals[:min_len])
-        all_model2.extend(m2_vals[:min_len])
-    
-    if len(all_model1) != len(all_model2) or len(all_model1) == 0:
-        return {"error": "Mismatched data lengths"}
-    
-    t_stat, p_value_ttest = stats.ttest_rel(all_model1, all_model2)
-    
-    try:
-        w_stat, p_value_wilcoxon = stats.wilcoxon(all_model1, all_model2)
-    except ValueError:
-        w_stat, p_value_wilcoxon = None, 1.0
-    
-    differences = np.array(all_model1) - np.array(all_model2)
-    mean_diff = np.mean(differences)
-    std_diff = np.std(differences, ddof=1)
-    cohens_d = mean_diff / std_diff if std_diff > 0 else 0.0
-    
-    return {
-        "metric": metric_name,
-        "n_pairs": len(all_model1),
-        "model1_mean": float(np.mean(all_model1)),
-        "model1_std": float(np.std(all_model1)),
-        "model2_mean": float(np.mean(all_model2)),
-        "model2_std": float(np.std(all_model2)),
-        "mean_difference": float(mean_diff),
-        "t_statistic": float(t_stat),
-        "p_value_ttest": float(p_value_ttest),
-        "w_statistic": float(w_stat) if w_stat is not None else None,
-        "p_value_wilcoxon": float(p_value_wilcoxon),
-        "cohens_d": float(cohens_d),
-        "significant_ttest": p_value_ttest < 0.05,
-        "significant_wilcoxon": p_value_wilcoxon < 0.05
-    }
-
-
-def run_all_tests():
-    runs = load_runs()
-    
-    model_keys = set(get_model_key(run) for run in runs)
-    print(f"Found models: {sorted(model_keys)}")
-    
-    model_hr10 = {}
-    model_ndcg10 = {}
-    
-    for model_key in model_keys:
-        model_hr10[model_key] = extract_per_user_metrics(runs, model_key, "hr@10")
-        model_ndcg10[model_key] = extract_per_user_metrics(runs, model_key, "ndcg@10")
-    
-    baseline_models = ["random", "popularity", "embedding_cosine"]
-    baseline_means = {}
-    
-    for baseline in baseline_models:
-        if baseline in model_hr10:
-            all_vals = []
-            for seed_vals in model_hr10[baseline].values():
-                all_vals.extend(seed_vals)
-            if all_vals:
-                baseline_means[baseline] = np.mean(all_vals)
-    
-    if not baseline_means:
-        print("No baseline models found")
-        return
-    
-    best_baseline = max(baseline_means, key=baseline_means.get)
-    print(f"\nBest baseline: {best_baseline} (HR@10 = {baseline_means[best_baseline]:.4f})")
-    
-    if "ours_with_reranker" not in model_hr10:
-        print("Warning: 'ours_with_reranker' not found in runs")
-        return
-    
-    print("\n" + "="*60)
-    print("Statistical Tests: Ours vs Best Baseline")
-    print("="*60)
-    
-    hr10_test = paired_test(
-        model_hr10["ours_with_reranker"],
-        model_hr10[best_baseline],
-        "HR@10"
-    )
-    
-    if "error" not in hr10_test:
-        print(f"\nHR@10:")
-        print(f"  Ours: {hr10_test['model1_mean']:.4f} ± {hr10_test['model1_std']:.4f}")
-        print(f"  {best_baseline}: {hr10_test['model2_mean']:.4f} ± {hr10_test['model2_std']:.4f}")
-        print(f"  Mean difference: {hr10_test['mean_difference']:.4f}")
-        print(f"  Paired t-test: p = {hr10_test['p_value_ttest']:.4f} {'***' if hr10_test['significant_ttest'] else ''}")
-        print(f"  Wilcoxon: p = {hr10_test['p_value_wilcoxon']:.4f} {'***' if hr10_test['significant_wilcoxon'] else ''}")
-        print(f"  Cohen's d: {hr10_test['cohens_d']:.4f}")
-    
-    ndcg10_test = paired_test(
-        model_ndcg10["ours_with_reranker"],
-        model_ndcg10[best_baseline],
-        "nDCG@10"
-    )
-    
-    if "error" not in ndcg10_test:
-        print(f"\nnDCG@10:")
-        print(f"  Ours: {ndcg10_test['model1_mean']:.4f} ± {ndcg10_test['model1_std']:.4f}")
-        print(f"  {best_baseline}: {ndcg10_test['model2_mean']:.4f} ± {ndcg10_test['model2_std']:.4f}")
-        print(f"  Mean difference: {ndcg10_test['mean_difference']:.4f}")
-        print(f"  Paired t-test: p = {ndcg10_test['p_value_ttest']:.4f} {'***' if ndcg10_test['significant_ttest'] else ''}")
-        print(f"  Wilcoxon: p = {ndcg10_test['p_value_wilcoxon']:.4f} {'***' if ndcg10_test['significant_wilcoxon'] else ''}")
-        print(f"  Cohen's d: {ndcg10_test['cohens_d']:.4f}")
-    
-    def convert_for_json(obj):
-        if isinstance(obj, dict):
-            return {str(k): convert_for_json(v) for k, v in obj.items()}
-        elif isinstance(obj, (list, tuple)):
-            return [convert_for_json(item) for item in obj]
-        elif isinstance(obj, bool):
-            return int(obj)
-        elif isinstance(obj, (np.integer, np.int_, np.int64, np.int32)):
-            return int(obj)
-        elif isinstance(obj, (np.floating, np.float64, np.float32)):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, (np.bool_, bool)):
-            return int(bool(obj))
-        elif obj is None:
-            return None
-        elif isinstance(obj, (int, float, str)):
-            return obj
-        else:
+            if not line:
+                continue
             try:
-                return float(obj)
-            except (ValueError, TypeError):
-                try:
-                    return str(obj)
-                except:
-                    return None
-    
-    results = {
-        "best_baseline": best_baseline,
-        "hr@10": convert_for_json(hr10_test),
-        "ndcg@10": convert_for_json(ndcg10_test)
-    }
-    
-    output_path = OUTPUT_DIR / "stat_test_results.json"
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
-    print(f"\nSaved results to: {output_path}")
+                out.append(json.loads(line))
+            except Exception:
+                continue
+    return out
+
+
+def _model_key(run: Dict[str, Any]) -> str:
+    cfg = run.get("config", {}) or {}
+    baseline = cfg.get("baseline")
+    if baseline:
+        return str(baseline)
+    return "ours_with_reranker" if cfg.get("use_reranker", False) else "candidates_only"
+
+
+def _metric_col(metric: str) -> str:
+    return metric
+
+
+def _read_per_user(run_id: str, metric: str) -> Dict[str, float]:
+    p = Path("experiments") / f"{run_id}_per_user_metrics.csv"
+    if not p.exists():
+        p = Path("experiments") / f"{run_id}_per_user.csv"
+    if not p.exists():
+        return {}
+    out: Dict[str, float] = {}
+    with open(p, "r", encoding="utf-8", newline="") as f:
+        r = csv.DictReader(f)
+        for row in r:
+            uid = str(row.get("user") or row.get("user_id") or "")
+            if not uid:
+                continue
+            try:
+                out[uid] = float(row.get(_metric_col(metric)))
+            except Exception:
+                continue
+    return out
+
+
+def _pairwise_user_vectors(run_a: Dict[str, Any], run_b: Dict[str, Any], metric: str) -> Tuple[List[float], List[float]]:
+    ua = _read_per_user(str(run_a.get("run_id")), metric=metric)
+    ub = _read_per_user(str(run_b.get("run_id")), metric=metric)
+    users = sorted(set(ua.keys()) & set(ub.keys()))
+    return [ua[u] for u in users], [ub[u] for u in users]
+
+
+def run_tests(reference_model: str = "ours_with_reranker", metrics: List[str] = None):
+    if metrics is None:
+        metrics = ["hr@10", "ndcg@10", "mrr@10", "map@10"]
+    runs = _load_runs()
+    runs_by_model: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for r in runs:
+        runs_by_model[_model_key(r)].append(r)
+    if reference_model not in runs_by_model:
+        raise SystemExit(f"Reference model '{reference_model}' not found in runs.jsonl")
+
+    comparisons: List[Dict[str, Any]] = []
+    all_pvals_boot = []
+    all_pvals_perm = []
+
+    for model, model_runs in runs_by_model.items():
+        if model == reference_model:
+            continue
+        # Pair by exact experimental design keys except model identity.
+        ref_by_key = {}
+        for rr in runs_by_model[reference_model]:
+            cfg = rr.get("config", {}) or {}
+            key = (
+                cfg.get("dataset"),
+                cfg.get("seed"),
+                cfg.get("split_seed"),
+                cfg.get("init_seed"),
+                cfg.get("n_users"),
+                cfg.get("topk"),
+            )
+            ref_by_key[key] = rr
+
+        for mr in model_runs:
+            cfgm = mr.get("config", {}) or {}
+            key = (
+                cfgm.get("dataset"),
+                cfgm.get("seed"),
+                cfgm.get("split_seed"),
+                cfgm.get("init_seed"),
+                cfgm.get("n_users"),
+                cfgm.get("topk"),
+            )
+            rr = ref_by_key.get(key)
+            if rr is None:
+                continue
+            for metric in metrics:
+                a_vals, b_vals = _pairwise_user_vectors(rr, mr, metric=metric)
+                if not a_vals or not b_vals:
+                    continue
+                a_mean = float(np.mean(a_vals))
+                b_mean = float(np.mean(b_vals))
+                a_lo, a_hi = bootstrap_ci(a_vals, n_boot=2000, alpha=0.05, seed=42)
+                b_lo, b_hi = bootstrap_ci(b_vals, n_boot=2000, alpha=0.05, seed=42)
+                boot = paired_bootstrap_test(a_vals, b_vals, n_boot=2000, alpha=0.05, seed=42)
+                perm = paired_permutation_test(a_vals, b_vals, n_perm=5000, seed=42)
+                row = {
+                    "reference_model": reference_model,
+                    "compared_model": model,
+                    "dataset": cfgm.get("dataset"),
+                    "seed": cfgm.get("seed"),
+                    "split_seed": cfgm.get("split_seed"),
+                    "init_seed": cfgm.get("init_seed"),
+                    "metric": metric,
+                    "ref_mean": a_mean,
+                    "ref_ci95_low": a_lo,
+                    "ref_ci95_high": a_hi,
+                    "cmp_mean": b_mean,
+                    "cmp_ci95_low": b_lo,
+                    "cmp_ci95_high": b_hi,
+                    "delta_mean": boot["mean_diff"],
+                    "ci95_delta_low": boot["ci95_low"],
+                    "ci95_delta_high": boot["ci95_high"],
+                    "p_value": boot["p_value"],
+                    "p_value_permutation": perm["p_value"],
+                    "n_users": boot["n_users"],
+                    "table_ref": f"{a_mean:.3f} [{a_lo:.3f}, {a_hi:.3f}]",
+                    "table_delta": f"{boot['mean_diff']:+.3f} [{boot['ci95_low']:+.3f}, {boot['ci95_high']:+.3f}], p={boot['p_value']:.4f}",
+                }
+                comparisons.append(row)
+                all_pvals_boot.append(float(boot["p_value"]))
+                all_pvals_perm.append(float(perm["p_value"]))
+
+    if not comparisons:
+        raise SystemExit("No comparable run pairs with per-user metrics found.")
+
+    boot_holm = adjust_pvalues(all_pvals_boot, method="holm")
+    boot_bh = adjust_pvalues(all_pvals_boot, method="bh")
+    perm_holm = adjust_pvalues(all_pvals_perm, method="holm")
+    perm_bh = adjust_pvalues(all_pvals_perm, method="bh")
+
+    for i, row in enumerate(comparisons):
+        row["p_value_holm"] = boot_holm[i]
+        row["p_value_bh"] = boot_bh[i]
+        row["p_perm_holm"] = perm_holm[i]
+        row["p_perm_bh"] = perm_bh[i]
+
+    out_json = OUTPUT_DIR / "stat_test_results.json"
+    out_csv = OUTPUT_DIR / "stat_test_results.csv"
+    out_md = OUTPUT_DIR / "stat_test_table.md"
+    with open(out_json, "w", encoding="utf-8") as f:
+        json.dump({"reference_model": reference_model, "results": comparisons}, f, ensure_ascii=False, indent=2)
+
+    with open(out_csv, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(comparisons[0].keys()))
+        writer.writeheader()
+        writer.writerows(comparisons)
+
+    with open(out_md, "w", encoding="utf-8") as f:
+        f.write("| metric | reference | compared | point estimate | delta |\n")
+        f.write("|---|---|---|---|---|\n")
+        for r in comparisons:
+            f.write(
+                f"| {r['metric']} | {r['reference_model']} | {r['compared_model']} | "
+                f"{r['table_ref']} | {r['table_delta']} |\n"
+            )
+    print(f"Saved: {out_json}")
+    print(f"Saved: {out_csv}")
+    print(f"Saved: {out_md}")
 
 
 def main():
-    print("Running statistical significance tests...")
-    try:
-        run_all_tests()
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
+    print("Running centralized statistical tests (paired bootstrap + permutation + corrections)...")
+    run_tests()
 
 
 if __name__ == "__main__":

@@ -286,6 +286,23 @@ def log_run(
     with open(out_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     
+    metric_bits = []
+    for m_name, m_val in (metrics or {}).items():
+        if not isinstance(m_val, dict):
+            continue
+        mean = m_val.get("mean")
+        lo = m_val.get("ci95_low")
+        hi = m_val.get("ci95_high")
+        n_users = m_val.get("n_users")
+        if mean is None:
+            continue
+        if lo is not None and hi is not None:
+            metric_bits.append(f"{m_name}={mean:.4f} [{lo:.4f}, {hi:.4f}] (n={n_users})")
+        else:
+            metric_bits.append(f"{m_name}={mean:.4f} (n={n_users})")
+    if metric_bits:
+        logger.info("Metrics with CI: %s", " | ".join(metric_bits))
+
     logger.info("Logged run %s to %s", run_id, out_path)
 
 

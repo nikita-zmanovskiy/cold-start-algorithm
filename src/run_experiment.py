@@ -27,6 +27,8 @@ from .rerank_llm import CrossReranker
 def run_experiment(
     n_users: int = None,
     seed: int = 42,
+    split_seed: int = 42,
+    init_seed: int = 42,
     config: dict = None,
     dataset: str = "serendipity",
 ) -> dict:
@@ -79,6 +81,7 @@ def run_experiment(
             "topk": 10,
             "candidate_pool_size": 1000,
             "retrieval_mode": "ann",
+            "preference_prior_mode": "prior_plus_context",
             "dataset": dataset,
         }
     else:
@@ -95,6 +98,7 @@ def run_experiment(
                 "topk": 10,
                 "candidate_pool_size": 1000,
                 "retrieval_mode": "ann",
+                "preference_prior_mode": "prior_plus_context",
                 "dataset": dataset,
             },
             **config,
@@ -380,6 +384,7 @@ def run_experiment(
             item_ids_catalog=item_ids_catalog,
             embeddings=emb if config["baseline"] == "itemknn" else None,
             id2idx=id2idx if config["baseline"] == "itemknn" else None,
+            init_seed=int(init_seed),
             cache_dir=Path(config["baselines_cache_dir"]) if config.get("baselines_cache_dir") else None,
         )
     
@@ -432,12 +437,16 @@ def run_experiment(
         info = {
             "user_id": uid,
             "goal": "",  
-            "time_of_day": None,
-            "session_len": None,
+            "time_of_day": config.get("session_time_of_day", "evening"),
+            "session_len": config.get("session_len", 15),
+            "device": config.get("device_type", "desktop"),
             "viewed_item_ids": viewed_ids,
             "items_meta": enriched,
         }
-        profile = build_user_profile_from_minimal(info)
+        profile = build_user_profile_from_minimal(
+            info,
+            prior_mode=config.get("preference_prior_mode", "prior_plus_context"),
+        )
         profile_type = config.get("profile_type", "last_k_items")
         if profile_type == "summary" and viewed_ids and enriched_by_id:
             titles = [enriched_by_id.get(str(iid), {}).get("title", "") for iid in viewed_ids]
@@ -689,6 +698,7 @@ def run_experiment(
             pool_size=config.get("candidate_pool_size", 1000),
             retrieval_mode=config.get("retrieval_mode", "ann"),
             hybrid_union_max=config.get("hybrid_union_max"), 
+            preference_prior_mode=config.get("preference_prior_mode", "prior_plus_context"),
         )
         retrieval_times.append(time.time() - t0)
         
@@ -926,6 +936,8 @@ def run_experiment(
     item_pop_count = {str(it.get("item_id")): float(it.get("pop", 0) or 0) for it in enriched} if enriched else {}
 
     run_meta = {
+        "split_seed": int(split_seed),
+        "init_seed": int(init_seed),
         "catalog_size": catalog_size,
         "candidates_requested": candidates_requested,
         "candidates_after_filters": {
@@ -988,11 +1000,20 @@ def run_with_logging(
     run_id: str,
     n_users: int = None,
     seed: int = 42,
+    split_seed: int = 42,
+    init_seed: int = 42,
     config: dict = None,
     dataset: str = "serendipity",
 ) -> dict:
    
-    results_meta = run_experiment(n_users=n_users, seed=seed, config=config, dataset=dataset)
+    results_meta = run_experiment(
+        n_users=n_users,
+        seed=seed,
+        split_seed=split_seed,
+        init_seed=init_seed,
+        config=config,
+        dataset=dataset,
+    )
     
     if isinstance(results_meta, dict) and "results" in results_meta:
         results = results_meta["results"]
@@ -1043,26 +1064,30 @@ def run_with_logging(
         "hr@10": {
             "mean": summary.get("hr_mean", 0.0),
             "std": summary.get("hr_std", 0.0),
-            "ci_95_lower": summary.get("hr_ci_95_lower"),
-            "ci_95_upper": summary.get("hr_ci_95_upper"),
+            "ci95_low": summary.get("hr_ci_95_lower"),
+            "ci95_high": summary.get("hr_ci_95_upper"),
+            "n_users": summary.get("n_users", 0),
         },
         "ndcg@10": {
             "mean": summary.get("ndcg_mean", 0.0),
             "std": summary.get("ndcg_std", 0.0),
-            "ci_95_lower": summary.get("ndcg_ci_95_lower"),
-            "ci_95_upper": summary.get("ndcg_ci_95_upper"),
+            "ci95_low": summary.get("ndcg_ci_95_lower"),
+            "ci95_high": summary.get("ndcg_ci_95_upper"),
+            "n_users": summary.get("n_users", 0),
         },
         "mrr@10": {
             "mean": summary.get("mrr_mean", 0.0),
             "std": summary.get("mrr_std", 0.0),
-            "ci_95_lower": summary.get("mrr_ci_95_lower"),
-            "ci_95_upper": summary.get("mrr_ci_95_upper"),
+            "ci95_low": summary.get("mrr_ci_95_lower"),
+            "ci95_high": summary.get("mrr_ci_95_upper"),
+            "n_users": summary.get("n_users", 0),
         },
         "map@10": {
             "mean": summary.get("map_mean", 0.0),
             "std": summary.get("map_std", 0.0),
-            "ci_95_lower": summary.get("map_ci_95_lower"),
-            "ci_95_upper": summary.get("map_ci_95_upper"),
+            "ci95_low": summary.get("map_ci_95_lower"),
+            "ci95_high": summary.get("map_ci_95_upper"),
+            "n_users": summary.get("n_users", 0),
         },
     }
 
@@ -1078,26 +1103,30 @@ def run_with_logging(
             "hr@10": {
                 "mean": summary_pre.get("hr_mean", 0.0),
                 "std": summary_pre.get("hr_std", 0.0),
-                "ci_95_lower": summary_pre.get("hr_ci_95_lower"),
-                "ci_95_upper": summary_pre.get("hr_ci_95_upper"),
+                "ci95_low": summary_pre.get("hr_ci_95_lower"),
+                "ci95_high": summary_pre.get("hr_ci_95_upper"),
+                "n_users": summary_pre.get("n_users", 0),
             },
             "ndcg@10": {
                 "mean": summary_pre.get("ndcg_mean", 0.0),
                 "std": summary_pre.get("ndcg_std", 0.0),
-                "ci_95_lower": summary_pre.get("ndcg_ci_95_lower"),
-                "ci_95_upper": summary_pre.get("ndcg_ci_95_upper"),
+                "ci95_low": summary_pre.get("ndcg_ci_95_lower"),
+                "ci95_high": summary_pre.get("ndcg_ci_95_upper"),
+                "n_users": summary_pre.get("n_users", 0),
             },
             "mrr@10": {
                 "mean": summary_pre.get("mrr_mean", 0.0),
                 "std": summary_pre.get("mrr_std", 0.0),
-                "ci_95_lower": summary_pre.get("mrr_ci_95_lower"),
-                "ci_95_upper": summary_pre.get("mrr_ci_95_upper"),
+                "ci95_low": summary_pre.get("mrr_ci_95_lower"),
+                "ci95_high": summary_pre.get("mrr_ci_95_upper"),
+                "n_users": summary_pre.get("n_users", 0),
             },
             "map@10": {
                 "mean": summary_pre.get("map_mean", 0.0),
                 "std": summary_pre.get("map_std", 0.0),
-                "ci_95_lower": summary_pre.get("map_ci_95_lower"),
-                "ci_95_upper": summary_pre.get("map_ci_95_upper"),
+                "ci95_low": summary_pre.get("map_ci_95_lower"),
+                "ci95_high": summary_pre.get("map_ci_95_upper"),
+                "n_users": summary_pre.get("n_users", 0),
             },
         }
 
@@ -1207,6 +1236,8 @@ def run_with_logging(
         run_id=run_id,
         config={
             "seed": seed,
+            "split_seed": int(split_seed),
+            "init_seed": int(init_seed),
             "n_users": n_users,
             "topk": config.get("topk", 10) if config else 10,
             "baseline": config.get("baseline") if config else None,
@@ -1218,6 +1249,7 @@ def run_with_logging(
             "dataset": dataset,
             "two_head_config": config.get("two_head_config") if config else None,
             "profile_type": config.get("profile_type") if config else None,
+            "preference_prior_mode": config.get("preference_prior_mode") if config else None,
             "diversify_config": config.get("diversify_config") if config else None,
             "robustness": config.get("robustness") if config else None,
             "train_interactions_path": config.get("train_interactions_path") if config else None,
@@ -1235,7 +1267,8 @@ def run_with_logging(
         retrieval_times=retrieval_times,
         run_meta=run_meta,
         files={
-            "raw_results": str((results_dir / f"{run_id}.json").as_posix())
+            "raw_results": str((results_dir / f"{run_id}.json").as_posix()),
+            "per_user_metrics_csv": str((Path("experiments") / f"{run_id}_per_user_metrics.csv").as_posix()),
         },
         runs_log_path=Path(runs_log_path) if runs_log_path else None,
     )
@@ -1261,14 +1294,16 @@ def run_with_logging(
    
     import csv
     OUT_DIR = Path("experiments")
-    csv_path = OUT_DIR / f"{run_id}_per_user.csv"
+    csv_path = OUT_DIR / f"{run_id}_per_user_metrics.csv"
+    csv_legacy_path = OUT_DIR / f"{run_id}_per_user.csv"
     if rows:
         keys = list(rows[0].keys())
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=keys)
-            writer.writeheader()
-            writer.writerows(rows)
-        logger.info("Saved per-user CSV: %s", csv_path)
+        for out_path in (csv_path, csv_legacy_path):
+            with open(out_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=keys)
+                writer.writeheader()
+                writer.writerows(rows)
+        logger.info("Saved per-user metrics CSV: %s", csv_path)
     
     return results
 

@@ -15,6 +15,7 @@ if not logger.handlers:
     logger.setLevel(logging.INFO)
 
 from src.evaluate import hr_at_k, ndcg_at_k
+from .stats import bootstrap_ci, aggregate_user_metrics_with_ci
 
 RESULTS_DIR = Path("results")
 from .evaluation_config import get_eval_paths
@@ -77,27 +78,6 @@ def extract_rec_ids(rec_list: List[Dict[str,Any]]):
             # If it's already an ID string/int, use it directly
             ids.append(str(r))
     return ids
-
-
-def bootstrap_ci(
-    data: List[float],
-    n_bootstrap: int = 1000,
-    confidence: float = 0.95,
-    random_state: int = None,
-) -> tuple:
-
-    if not data or len(data) == 0:
-        return None, None
-    rng = np.random.default_rng(random_state)
-    n = len(data)
-    bootstrap_means = []
-    for _ in range(n_bootstrap):
-        idx = rng.integers(0, n, size=n)
-        bootstrap_means.append(float(np.mean([data[i] for i in idx])))
-    alpha = 1 - confidence
-    lower = np.percentile(bootstrap_means, 100 * alpha / 2)
-    upper = np.percentile(bootstrap_means, 100 * (1 - alpha / 2))
-    return float(lower), float(upper)
 
 
 def evaluate_single(
@@ -197,38 +177,35 @@ def evaluate_single(
         mrr_vals.append(mrr)
         map_vals.append(map_val)
 
-    hr_mean = float(np.mean(hr_vals)) if hr_vals else None
-    hr_std = float(np.std(hr_vals)) if hr_vals else None
-    ndcg_mean = float(np.mean(ndcg_vals)) if ndcg_vals else None
-    ndcg_std = float(np.std(ndcg_vals)) if ndcg_vals else None
-    mrr_mean = float(np.mean(mrr_vals)) if mrr_vals else None
-    mrr_std = float(np.std(mrr_vals)) if mrr_vals else None
-    map_mean = float(np.mean(map_vals)) if map_vals else None
-    map_std = float(np.std(map_vals)) if map_vals else None
-
-    hr_ci_lo, hr_ci_hi = bootstrap_ci(hr_vals, n_bootstrap=n_bootstrap) if hr_vals else (None, None)
-    ndcg_ci_lo, ndcg_ci_hi = bootstrap_ci(ndcg_vals, n_bootstrap=n_bootstrap) if ndcg_vals else (None, None)
-    mrr_ci_lo, mrr_ci_hi = bootstrap_ci(mrr_vals, n_bootstrap=n_bootstrap) if mrr_vals else (None, None)
-    map_ci_lo, map_ci_hi = bootstrap_ci(map_vals, n_bootstrap=n_bootstrap) if map_vals else (None, None)
+    agg = aggregate_user_metrics_with_ci(
+        rows,
+        metric_cols=[f"hr@{k}", f"ndcg@{k}", f"mrr@{k}", f"map@{k}"],
+        n_boot=n_bootstrap,
+        alpha=0.05,
+    )
+    hr_stat = agg.get(f"hr@{k}", {})
+    ndcg_stat = agg.get(f"ndcg@{k}", {})
+    mrr_stat = agg.get(f"mrr@{k}", {})
+    map_stat = agg.get(f"map@{k}", {})
 
     summary = {
         "n_users": len(rows),
-        "hr_mean": hr_mean,
-        "hr_std": hr_std,
-        "hr_ci_95_lower": hr_ci_lo,
-        "hr_ci_95_upper": hr_ci_hi,
-        "ndcg_mean": ndcg_mean,
-        "ndcg_std": ndcg_std,
-        "ndcg_ci_95_lower": ndcg_ci_lo,
-        "ndcg_ci_95_upper": ndcg_ci_hi,
-        "mrr_mean": mrr_mean,
-        "mrr_std": mrr_std,
-        "mrr_ci_95_lower": mrr_ci_lo,
-        "mrr_ci_95_upper": mrr_ci_hi,
-        "map_mean": map_mean,
-        "map_std": map_std,
-        "map_ci_95_lower": map_ci_lo,
-        "map_ci_95_upper": map_ci_hi,
+        "hr_mean": hr_stat.get("mean"),
+        "hr_std": hr_stat.get("std"),
+        "hr_ci_95_lower": hr_stat.get("ci95_low"),
+        "hr_ci_95_upper": hr_stat.get("ci95_high"),
+        "ndcg_mean": ndcg_stat.get("mean"),
+        "ndcg_std": ndcg_stat.get("std"),
+        "ndcg_ci_95_lower": ndcg_stat.get("ci95_low"),
+        "ndcg_ci_95_upper": ndcg_stat.get("ci95_high"),
+        "mrr_mean": mrr_stat.get("mean"),
+        "mrr_std": mrr_stat.get("std"),
+        "mrr_ci_95_lower": mrr_stat.get("ci95_low"),
+        "mrr_ci_95_upper": mrr_stat.get("ci95_high"),
+        "map_mean": map_stat.get("mean"),
+        "map_std": map_stat.get("std"),
+        "map_ci_95_lower": map_stat.get("ci95_low"),
+        "map_ci_95_upper": map_stat.get("ci95_high"),
     }
     return rows, summary
 

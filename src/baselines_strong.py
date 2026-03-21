@@ -156,10 +156,11 @@ def mf_als_fit(
     n_factors: int = 64,
     reg: float = 0.01,
     n_iters: int = 15,
+    init_seed: int = 42,
 ) -> Tuple[np.ndarray, np.ndarray]:
 
     n_users, n_items = X.shape
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng(init_seed)
     P = rng.standard_normal((n_users, n_factors)).astype(np.float32) * 0.01
     Q = rng.standard_normal((n_items, n_factors)).astype(np.float32) * 0.01
     for it in range(n_iters):
@@ -230,6 +231,7 @@ def get_strong_baseline_model(
     ease_reg: float = 100.0,
     mf_factors: int = 64,
     mf_iters: int = 15,
+    init_seed: int = 42,
     cache_dir: Optional[Path] = None,
 ) -> Dict[str, Any]:
 
@@ -302,18 +304,22 @@ def get_strong_baseline_model(
             try:
                 with open(meta_path, "r", encoding="utf-8") as f:
                     meta = json.load(f)
-                if meta.get("n_users") == n_u and meta.get("n_items") == n_i:
+                if (
+                    meta.get("n_users") == n_u
+                    and meta.get("n_items") == n_i
+                    and int(meta.get("init_seed", 42)) == int(init_seed)
+                ):
                     P = np.load(p_path)
                     Q = np.load(q_path)
                     logger.info("Loaded cached MF from %s", cache_dir)
                     return {"type": "mf", "P": P, "Q": Q, "u2idx": u2idx, "i2idx": i2idx, "idx2i": idx2i}
             except Exception:
                 pass
-        P, Q = mf_als_fit(X, n_factors=mf_factors, n_iters=mf_iters)
+        P, Q = mf_als_fit(X, n_factors=mf_factors, n_iters=mf_iters, init_seed=init_seed)
         np.save(p_path, P)
         np.save(q_path, Q)
         with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump({"n_users": n_u, "n_items": n_i}, f)
+            json.dump({"n_users": n_u, "n_items": n_i, "init_seed": int(init_seed)}, f)
         return {"type": "mf", "P": P, "Q": Q, "u2idx": u2idx, "i2idx": i2idx, "idx2i": idx2i}
 
     raise ValueError(f"Unknown strong baseline: {baseline_type}. Use itemknn, ease, mf.")

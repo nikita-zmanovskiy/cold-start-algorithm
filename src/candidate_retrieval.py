@@ -7,6 +7,7 @@ from .bm25 import BM25Index
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import os
+from .vark_simulator import preference_match_score
 
 
 _query_encoder = None
@@ -94,6 +95,7 @@ def get_candidates_for_user(
     ann_overfetch_factor: int = 4,
     bm25_overfetch_factor: int = 4,
     hybrid_union_max: int = None,
+    preference_prior_mode: str = "prior_plus_context",
 ):
  
     model = _get_query_encoder()
@@ -242,6 +244,14 @@ def get_candidates_for_user(
             pop_rank = scores.get("pop_rank")
             if pop_rank is not None:
                 rrf += 0.5 / (RRF_K + pop_rank)  # downweight popularity so user signals dominate
+            if preference_prior_mode != "no_prior":
+                meta = next((it for it in items_list if str(it.get("item_id")) == str(item_id)), {})
+                pref_bonus = preference_match_score(
+                    user_profile,
+                    meta,
+                    use_context=(preference_prior_mode == "prior_plus_context"),
+                )
+                rrf += 0.1 * float(pref_bonus)
             return rrf
 
         # Sort by RRF (higher = better). Tie-break by hash(user_id, item_id) so different

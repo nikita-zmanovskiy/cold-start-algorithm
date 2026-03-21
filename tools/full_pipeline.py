@@ -75,6 +75,11 @@ def main():
         action="store_true",
         help="Force rebuild ground_truth + split train/val/test via src.create_splits (recommended if GT may be stale/leaky).",
     )
+    parser.add_argument("--split-seeds", nargs="+", type=int, default=[42], help="Split seeds for fold/split variance runs.")
+    parser.add_argument("--init-seeds", nargs="+", type=int, default=None, help="Init seeds for trainable models variance.")
+    parser.add_argument("--skip-optimizer-ablation", action="store_true", help="Skip optimizer ablation for finetuned reranker.")
+    parser.add_argument("--optimizer-ablation-dry-run", action="store_true", help="Validate optimizer ablation commands without training.")
+    parser.add_argument("--skip-preference-prior-ablation", action="store_true", help="Skip preference-prior ablation (no_prior / prior_only / prior_plus_context).")
     args = parser.parse_args()
 
     if args.clean:
@@ -216,31 +221,47 @@ def main():
     print(f"Project root: {project_root}")
     if fast:
         print(f"Fast mode: n_users={n_users}, seeds={seeds}, pool_sizes={pool_list}")
+    init_seeds = [42, 7, 2024] if args.init_seeds is None else args.init_seeds
+    if not fast and args.init_seeds is None:
+        init_seeds = [42, 7, 123, 2024, 2025]
+    split_seeds = args.split_seeds if args.split_seeds else [42]
+    split_seeds_arg = ["--split-seeds"] + [str(x) for x in split_seeds]
+    init_seeds_arg = ["--init-seeds"] + [str(x) for x in init_seeds]
+
+    cv_cmd = (
+        ["python", "-m", "src.run_cv_splits", "--datasets", "serendipity", "--cv-modes", "user_kfold", "--n-folds", "5", "--few-shot-n", "1", "--split-seed", str(split_seeds[0])]
+        if fast else
+        ["python", "-m", "src.run_cv_splits", "--datasets", "serendipity", "taobao", "movielens", "--cv-modes", "user_kfold", "item_kfold", "both_kfold", "--n-folds", "5", "--few-shot-n", "1", "--split-seed", str(split_seeds[0])]
+    )
 
     experiment_steps = [
         (
+            "0) Build CV folds (entity-level protocol)",
+            cv_cmd,
+        ),
+        (
             "1) Run main experiments (baselines + ablation) on Serendipity", #is done
-            ["python", "-m", "src.run_all_experiments", "--n-users", n_users] + seeds_arg + ["--dataset", "serendipity"],
+            ["python", "-m", "src.run_all_experiments", "--n-users", n_users] + seeds_arg + split_seeds_arg + init_seeds_arg + ["--dataset", "serendipity"],
         ),
         (
             "1b) Run sanity check baselines (oracle upper bound, random in candidate pool) on Serendipity", #next step - Running ABLATION study (n_users=500, seeds=[42, 7, 123, 2024, 2025, 0, 13, 999, 1234, 777])
-            ["python", "-m", "src.run_all_experiments", "--sanity-only", "--n-users", n_users] + seeds_arg + ["--dataset", "serendipity"],
+            ["python", "-m", "src.run_all_experiments", "--sanity-only", "--n-users", n_users] + seeds_arg + split_seeds_arg + ["--dataset", "serendipity"],
         ),
         (
             "2) Run main experiments on Taobao",
-            ["python", "-m", "src.run_all_experiments", "--n-users", n_users] + seeds_arg + ["--dataset", "taobao"],
+            ["python", "-m", "src.run_all_experiments", "--n-users", n_users] + seeds_arg + split_seeds_arg + init_seeds_arg + ["--dataset", "taobao"],
         ),
         (
             "2b) Run sanity check baselines on Taobao",
-            ["python", "-m", "src.run_all_experiments", "--sanity-only", "--n-users", n_users] + seeds_arg + ["--dataset", "taobao"],
+            ["python", "-m", "src.run_all_experiments", "--sanity-only", "--n-users", n_users] + seeds_arg + split_seeds_arg + ["--dataset", "taobao"],
         ),
         (
             "2c) Run main experiments on MovieLens",
-            ["python", "-m", "src.run_all_experiments", "--n-users", n_users] + seeds_arg + ["--dataset", "movielens"],
+            ["python", "-m", "src.run_all_experiments", "--n-users", n_users] + seeds_arg + split_seeds_arg + init_seeds_arg + ["--dataset", "movielens"],
         ),
         (
             "2d) Run sanity check baselines on MovieLens",
-            ["python", "-m", "src.run_all_experiments", "--sanity-only", "--n-users", n_users] + seeds_arg + ["--dataset", "movielens"],
+            ["python", "-m", "src.run_all_experiments", "--sanity-only", "--n-users", n_users] + seeds_arg + split_seeds_arg + ["--dataset", "movielens"],
         ),
         (
             "3) Retrieval + pool-size ablation (ANN / BM25 / hybrid)",
@@ -255,9 +276,22 @@ def main():
             ["python", "-m", "src.run_reranker_variants", "--n-users", n_users] + seeds_arg + ["--dataset", "serendipity"],
         ),
         (
+            "5a) Optimizer ablation (AdamW / SGD / Adafactor on finetuned reranker)",
+            ["python", "-m", "src.run_optimizer_ablation", "--n-users", n_users, "--dataset", "serendipity", "--seeds"]
+            + ([seeds[0]] if fast else seeds[:3])
+            + ["--init-seeds"]
+            + [str(x) for x in init_seeds]
+            + (["--epochs", "1", "--batch-size", "8", "--max-samples", "1000"] if fast else ["--epochs", "2", "--batch-size", "16", "--max-samples", "5000"])
+            + (["--dry-run"] if args.optimizer_ablation_dry_run else []),
+        ) if not args.skip_optimizer_ablation else None,
+        (
             "5b) Profile ablation (centroid / summary / last_k)",
             ["python", "-m", "src.run_ablation_profile", "--n-users", n_users] + seeds_arg + ["--dataset", "serendipity"],
         ),
+        (
+            "5b2) Preference-prior ablation (no prior / prior only / prior + context)",
+            ["python", "-m", "src.run_ablation_preference_prior", "--n-users", n_users] + seeds_arg + ["--dataset", "serendipity"],
+        ) if not args.skip_preference_prior_ablation else None,
         (
             "5c) Anti-bias ablation (none / popularity / exposure / MMR / xQuAD)",
             ["python", "-m", "src.run_ablation_debias", "--n-users", n_users] + seeds_arg + ["--dataset", "serendipity"],

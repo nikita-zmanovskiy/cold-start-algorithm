@@ -3,7 +3,7 @@ import csv
 import json
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Any, Optional, Set
 
 from .evaluation_config import (
     SPLIT_RATIOS,
@@ -155,6 +155,145 @@ def split_leave_last_out(
     return train, val, test
 
 
+def _stable_group_fold_map(group_ids: Set[str], n_folds: int, split_seed: int = 42) -> Dict[str, int]:
+    """
+    Deterministic fold assignment for groups (users/items).
+    Same ids -> same fold map for fixed n_folds.
+    """
+    if n_folds < 2:
+        raise ValueError("n_folds must be >= 2")
+    ordered = sorted(str(g) for g in group_ids)
+    import random
+    rng = random.Random(int(split_seed))
+    rng.shuffle(ordered)
+    return {gid: (idx % n_folds) for idx, gid in enumerate(ordered)}
+
+
+def _write_interactions_csv(path: Path, rows: List[Dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=["user_id", "item_id", "timestamp"])
+        w.writeheader()
+        for r in rows:
+            w.writerow(
+                {
+                    "user_id": r["user_id"],
+                    "item_id": r["item_id"],
+                    "timestamp": r.get("timestamp") or "",
+                }
+            )
+
+
+def _write_ground_truth_csv(path: Path, gt_map: Dict[str, List[str]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=["user_id", "item_id"])
+        w.writeheader()
+        for uid in sorted(gt_map.keys()):
+            for iid in gt_map[uid]:
+                w.writerow({"user_id": uid, "item_id": iid})
+
+
+def split_group_kfold(
+    rows: List[Dict[str, Any]],
+    cv_mode: str,
+    n_folds: int,
+    fold_id: int,
+    split_seed: int = 42,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    if fold_id < 0 or fold_id >= n_folds:
+        raise ValueError(f"fold_id must be in [0, {n_folds - 1}]")
+
+    val_fold = (fold_id + 1) % n_folds
+    users = {r["user_id"] for r in rows}
+    items = {r["item_id"] for r in rows}
+
+    if cv_mode == "user_kfold":
+        u2f = _stable_group_fold_map(users, n_folds, split_seed=split_seed)
+        train = [r for r in rows if u2f[r["user_id"]] not in {fold_id, val_fold}]
+        val = [r for r in rows if u2f[r["user_id"]] == val_fold]
+        test = [r for r in rows if u2f[r["user_id"]] == fold_id]
+        fold_info = {
+            "cv_mode": cv_mode,
+            "n_folds": n_folds,
+            "fold_id": fold_id,
+            "val_fold_id": val_fold,
+            "group_key": "user_id",
+            "split_seed": int(split_seed),
+            "n_groups": len(users),
+            "fold_counts": dict(defaultdict(int, {str(fid): sum(1 for _, f in u2f.items() if f == fid) for fid in range(n_folds)})),
+        }
+        return train, val, test, fold_info
+
+    if cv_mode == "item_kfold":
+        i2f = _stable_group_fold_map(items, n_folds, split_seed=split_seed)
+        train = [r for r in rows if i2f[r["item_id"]] not in {fold_id, val_fold}]
+        val = [r for r in rows if i2f[r["item_id"]] == val_fold]
+        test = [r for r in rows if i2f[r["item_id"]] == fold_id]
+        fold_info = {
+            "cv_mode": cv_mode,
+            "n_folds": n_folds,
+            "fold_id": fold_id,
+            "val_fold_id": val_fold,
+            "group_key": "item_id",
+            "split_seed": int(split_seed),
+            "n_groups": len(items),
+            "fold_counts": dict(defaultdict(int, {str(fid): sum(1 for _, f in i2f.items() if f == fid) for fid in range(n_folds)})),
+        }
+        return train, val, test, fold_info
+
+    if cv_mode == "both_kfold":
+        u2f = _stable_group_fold_map(users, n_folds, split_seed=split_seed)
+        i2f = _stable_group_fold_map(items, n_folds, split_seed=split_seed)
+        # Cartesian-style fold protocol:
+        # - test: user and item both assigned to fold_id
+        # - val: user and item both assigned to val_fold
+        # - train: interactions that contain neither test-fold users nor test-fold items
+        train = [r for r in rows if u2f[r["user_id"]] != fold_id and i2f[r["item_id"]] != fold_id and u2f[r["user_id"]] != val_fold and i2f[r["item_id"]] != val_fold]
+        val = [r for r in rows if u2f[r["user_id"]] == val_fold and i2f[r["item_id"]] == val_fold]
+        test = [r for r in rows if u2f[r["user_id"]] == fold_id and i2f[r["item_id"]] == fold_id]
+        fold_info = {
+            "cv_mode": cv_mode,
+            "n_folds": n_folds,
+            "fold_id": fold_id,
+            "val_fold_id": val_fold,
+            "group_key": "user_id+item_id",
+            "split_seed": int(split_seed),
+            "n_user_groups": len(users),
+            "n_item_groups": len(items),
+        }
+        return train, val, test, fold_info
+
+    raise ValueError(f"Unsupported cv_mode: {cv_mode}")
+
+
+def make_few_shot_test_protocol(
+    test_rows: List[Dict[str, Any]],
+    few_shot_n: int,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    For each test user, keep first N interactions (time-ordered) as observed profile.
+    The rest become targets for ground-truth evaluation.
+    """
+    if few_shot_n <= 0:
+        return test_rows, test_rows
+
+    by_user: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for r in test_rows:
+        by_user[r["user_id"]].append(r)
+
+    observed: List[Dict[str, Any]] = []
+    target: List[Dict[str, Any]] = []
+    for uid, urows in by_user.items():
+        with_ts = [(r, _parse_ts(r.get("timestamp"))) for r in urows]
+        with_ts.sort(key=lambda x: (x[1] is None, x[1] or 0))
+        ordered = [r for r, _ in with_ts]
+        observed.extend(ordered[:few_shot_n])
+        target.extend(ordered[few_shot_n:])
+
+    return observed, target
+
+
 def build_splits(
     interactions_path: Path,
     dataset: str = "serendipity",
@@ -168,6 +307,11 @@ def build_splits(
     seed: int = 42,
     user_col: str = "user_id",
     item_col: str = "item_id",
+    cv_mode: str = "none",
+    n_folds: int = 5,
+    fold_id: int = 0,
+    few_shot_n: int = 0,
+    split_seed: int = 42,
 ) -> Dict[str, Any]:
     rows = load_interactions(interactions_path, user_col=user_col, item_col=item_col)
     if by_time is None:
@@ -180,20 +324,41 @@ def build_splits(
             by_time = False
     paths = get_eval_paths(dataset)
 
-    out_train = Path(out_train) if out_train else paths["train"]
-    out_val = Path(out_val) if out_val else paths["val"]
-    out_test = Path(out_test) if out_test else paths["test"]
-    out_gt = Path(out_gt) if out_gt else paths["gt"]
-    out_meta = Path(out_meta) if out_meta else paths["split_meta"]
+    ds_key = _ds_key(dataset)
+    if cv_mode == "none":
+        out_train = Path(out_train) if out_train else paths["train"]
+        out_val = Path(out_val) if out_val else paths["val"]
+        out_test = Path(out_test) if out_test else paths["test"]
+        out_gt = Path(out_gt) if out_gt else paths["gt"]
+        out_meta = Path(out_meta) if out_meta else paths["split_meta"]
+    else:
+        fold_root = Path(out_train).parent if out_train else (
+            Path(__file__).resolve().parents[1] / "data" / "processed" / ds_key / f"fold_{fold_id}"
+        )
+        out_train = Path(out_train) if out_train else (fold_root / "train_interactions.csv")
+        out_val = Path(out_val) if out_val else (fold_root / "val_interactions.csv")
+        out_test = Path(out_test) if out_test else (fold_root / "test_interactions.csv")
+        out_gt = Path(out_gt) if out_gt else (fold_root / "ground_truth.csv")
+        out_meta = Path(out_meta) if out_meta else (fold_root / "fold_metadata.json")
     if not rows:
         raise SystemExit(f"No rows loaded from {interactions_path}")
-
-    ds_key = _ds_key(dataset)
 
     # For MovieLens, use per-user leave-one-out splitting:
     # last -> test, penultimate -> val, rest -> train; then filter test users
     # so that everyone in test has at least 1 train interaction.
-    if ds_key == "movielens":
+    split_ratios = ratios if ratios is not None else SPLIT_RATIOS
+    fold_info: Dict[str, Any] = {}
+
+    if cv_mode != "none":
+        train, val, test, fold_info = split_group_kfold(
+            rows=rows,
+            cv_mode=cv_mode,
+            n_folds=n_folds,
+            fold_id=fold_id,
+            split_seed=split_seed,
+        )
+        logger.info("Using CV split mode=%s, fold=%d/%d", cv_mode, fold_id, n_folds)
+    elif ds_key == "movielens":
         min_user_interactions = 0
         logger.info(
             "Using leave-one-out split for MovieLens (min_user_interactions_in_train=%d)",
@@ -209,11 +374,15 @@ def build_splits(
         
         logger.info("Split method: %s (by_time=%s)", SPLIT_METHOD, by_time)
         
-        split_ratios = ratios if ratios is not None else SPLIT_RATIOS
         if by_time:
             train, val, test = split_by_time(rows, ratios=split_ratios)
         else:
             train, val, test = split_random(rows, ratios=split_ratios, seed=seed)
+
+    if few_shot_n > 0:
+        test_observed, gt_source_rows = make_few_shot_test_protocol(test, few_shot_n=few_shot_n)
+    else:
+        test_observed, gt_source_rows = test, test
 
     train_items = set(r["item_id"] for r in train)
 
@@ -223,7 +392,7 @@ def build_splits(
 
     gt = defaultdict(list)
     test_users = set()
-    for r in test:
+    for r in gt_source_rows:
         uid, iid = r["user_id"], r["item_id"]
         gt[uid].append(iid)
         test_users.add(uid)
@@ -240,7 +409,7 @@ def build_splits(
         }
 
     users_new_items = set()
-    for r in test:
+    for r in gt_source_rows:
         uid, iid = r["user_id"], r["item_id"]
         if iid not in train_items:
             users_new_items.add(uid)
@@ -256,10 +425,19 @@ def build_splits(
         bucket_to_users[user_meta[uid]["bucket"]].append(uid)
 
     split_metadata = {
+        "dataset": ds_key,
+        "cv_mode": cv_mode,
+        "n_folds": n_folds if cv_mode != "none" else None,
+        "fold_id": fold_id if cv_mode != "none" else None,
+        "few_shot_n": few_shot_n,
+        "split_seed": int(split_seed),
+        "fold_info": fold_info,
         "split_ratios": list(split_ratios),
         "n_train": len(train),
         "n_val": len(val),
         "n_test": len(test),
+        "n_test_observed": len(test_observed),
+        "n_test_targets": len(gt_source_rows),
         "n_test_users": len(test_users),
         "user_meta": user_meta,
         "scenario_to_users": scenario_to_users,
@@ -269,26 +447,14 @@ def build_splits(
     }
 
 
-    out_train.parent.mkdir(parents=True, exist_ok=True)
-    out_val.parent.mkdir(parents=True, exist_ok=True)
-    out_gt.parent.mkdir(parents=True, exist_ok=True)
-    out_meta.parent.mkdir(parents=True, exist_ok=True)
-
-    for path, data in [
-        (out_train, train),
-        (out_val, val),
-        (out_test, test),
-    ]:
-        if not data:
-            continue
-        with open(path, "w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(f, fieldnames=["user_id", "item_id", "timestamp"])
-            w.writeheader()
-            for r in data:
-                w.writerow({"user_id": r["user_id"], "item_id": r["item_id"], "timestamp": r.get("timestamp") or ""})
-
-    with open(out_gt, "w", encoding="utf-8") as f:
-        json.dump({"data": gt, "_split": "test"}, f, indent=2, ensure_ascii=False)
+    _write_interactions_csv(out_train, train)
+    _write_interactions_csv(out_val, val)
+    _write_interactions_csv(out_test, test_observed)
+    if out_gt.suffix.lower() == ".csv":
+        _write_ground_truth_csv(out_gt, gt)
+    else:
+        with open(out_gt, "w", encoding="utf-8") as f:
+            json.dump({"data": gt, "_split": "test"}, f, indent=2, ensure_ascii=False)
 
     with open(out_meta, "w", encoding="utf-8") as f:
         json.dump(split_metadata, f, indent=2, ensure_ascii=False)
@@ -301,6 +467,8 @@ def build_splits(
         "n_train": len(train),
         "n_val": len(val),
         "n_test": len(test),
+        "n_test_observed": len(test_observed),
+        "n_test_targets": len(gt_source_rows),
         "n_test_users": len(test_users),
         "scenario_sizes": {s: len(scenario_to_users[s]) for s in COLD_START_SCENARIOS},
         "bucket_sizes": {b: len(bucket_to_users[b]) for b in sorted(bucket_to_users.keys(), key=lambda x: (0 if x == "0" else int(x.split("-")[0]) if "-" in x else int(x.replace("+", "") or 21)))},
@@ -319,6 +487,11 @@ if __name__ == "__main__":
     p.add_argument("--random", action="store_true", help="Split randomly instead of by time")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--ratios", nargs=3, type=float, default=None, help="Split ratios: train val test (must sum to 1.0)")
+    p.add_argument("--cv-mode", type=str, default="none", choices=["none", "user_kfold", "item_kfold", "both_kfold"])
+    p.add_argument("--n-folds", type=int, default=5)
+    p.add_argument("--fold-id", type=int, default=0)
+    p.add_argument("--few-shot-n", type=int, default=0, help="For test users, first N interactions are observed profile; the rest are targets")
+    p.add_argument("--split-seed", type=int, default=42, help="Random seed for entity-to-fold assignment in CV modes.")
     p.add_argument("--out-train", default=None, help="Output path for training.csv")
     p.add_argument("--out-val", default=None, help="Output path for val_interactions.csv")
     p.add_argument("--out-test", default=None, help="Output path for test_interactions.csv")
@@ -331,11 +504,18 @@ if __name__ == "__main__":
 
     csv_path = Path(args.csv) if args.csv else get_default_raw_interactions_csv(args.dataset)
 
-    out_train = Path(args.out_train) if args.out_train else paths["train"]
-    out_val = Path(args.out_val) if args.out_val else paths["val"]
-    out_test = Path(args.out_test) if args.out_test else paths["test"]
-    out_meta = Path(args.out_meta) if args.out_meta else paths["split_meta"]
-    out_gt = Path(args.out_gt) if args.out_gt else paths["gt"]
+    if args.cv_mode == "none":
+        out_train = Path(args.out_train) if args.out_train else paths["train"]
+        out_val = Path(args.out_val) if args.out_val else paths["val"]
+        out_test = Path(args.out_test) if args.out_test else paths["test"]
+        out_meta = Path(args.out_meta) if args.out_meta else paths["split_meta"]
+        out_gt = Path(args.out_gt) if args.out_gt else paths["gt"]
+    else:
+        out_train = Path(args.out_train) if args.out_train else None
+        out_val = Path(args.out_val) if args.out_val else None
+        out_test = Path(args.out_test) if args.out_test else None
+        out_meta = Path(args.out_meta) if args.out_meta else None
+        out_gt = Path(args.out_gt) if args.out_gt else None
 
     summary = build_splits(
         csv_path,
@@ -348,5 +528,10 @@ if __name__ == "__main__":
         by_time=args.by_time and not args.random,
         seed=args.seed,
         ratios=tuple(args.ratios) if args.ratios else None,
+        cv_mode=args.cv_mode,
+        n_folds=args.n_folds,
+        fold_id=args.fold_id,
+        few_shot_n=args.few_shot_n,
+        split_seed=args.split_seed,
     )
     print("Summary:", json.dumps(summary, indent=2))

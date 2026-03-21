@@ -82,11 +82,19 @@ def simulate_vark_quiz_responses(seed=None):
     choices = ['visual','auditory','reading','kinesthetic']
     answers = [random.choice(choices) for _ in range(16)]
     dom = score_vark_from_answers(answers)
-    return {"answers": answers, "dominant": dom}
+    c = Counter(answers)
+    total = max(1, len(answers))
+    scores = {
+        "V": float(c.get("visual", 0) / total),
+        "A": float(c.get("auditory", 0) / total),
+        "R": float(c.get("reading", 0) / total),
+        "K": float(c.get("kinesthetic", 0) / total),
+    }
+    return {"answers": answers, "dominant": dom, "scores": scores}
 
-def estimate_cognitive_state(time_of_day:str=None, session_length_min:int=5, device:str="desktop"):
+def estimate_session_context(time_of_day: str = None, session_length_min: int = 5, device: str = "desktop"):
 
-    state = {"status":"neutral", "max_complexity":4}
+    state = {"status": "neutral", "max_complexity": 4}
     tod = (time_of_day or "").lower()
     
 
@@ -103,6 +111,59 @@ def estimate_cognitive_state(time_of_day:str=None, session_length_min:int=5, dev
         state["status"] = "neutral"
         state["max_complexity"] = 4
     return state
+
+
+def get_item_preference_features(meta: Dict) -> Dict[str, float]:
+    title = str(meta.get("title", "") or "").lower()
+    desc = str(meta.get("description", "") or meta.get("text", "") or "").lower()
+    genres = str(meta.get("genres", "") or "").lower()
+    tags = meta.get("format_tags") or meta.get("tags") or ""
+    if isinstance(tags, (list, tuple, set)):
+        tags = " ".join(str(x).lower() for x in tags)
+    else:
+        tags = str(tags).lower()
+    blob = " ".join([title, desc, genres, tags])
+
+    def has_any(words):
+        return 1.0 if any(w in blob for w in words) else 0.0
+
+    text_density = min(1.0, len(desc) / 600.0) if desc else 0.2
+    visual_density = has_any(["video", "visual", "diagram", "image", "plot", "chart"])
+    has_audio = has_any(["audio", "podcast", "speech", "lecture"])
+    has_video = has_any(["video", "youtube", "screencast", "visual"])
+    interactivity_level = has_any(["interactive", "exercise", "quiz", "lab", "practice"])
+    hands_on_score = has_any(["hands-on", "project", "lab", "build", "practice"])
+    difficulty = has_any(["advanced", "expert", "hard"]) * 1.0 + has_any(["beginner", "intro"]) * 0.2
+    prerequisites = has_any(["prerequisite", "requires", "before you start"])
+    return {
+        "has_video": has_video,
+        "has_audio": has_audio,
+        "text_density": float(text_density),
+        "interactivity_level": interactivity_level,
+        "hands_on_score": hands_on_score,
+        "visual_density": visual_density,
+        "difficulty": float(min(1.0, difficulty if difficulty > 0 else 0.4)),
+        "prerequisites": prerequisites,
+    }
+
+
+def preference_match_score(profile: Dict, item_meta: Dict, use_context: bool = True) -> float:
+    pref = profile.get("preference_prior") or {}
+    vark_scores = pref.get("vark_scores") or {"V": 0.25, "A": 0.25, "R": 0.25, "K": 0.25}
+    f = get_item_preference_features(item_meta or {})
+    # Map VARK components to item modality features.
+    score = (
+        float(vark_scores.get("V", 0.0)) * (0.6 * f["visual_density"] + 0.4 * f["has_video"])
+        + float(vark_scores.get("A", 0.0)) * f["has_audio"]
+        + float(vark_scores.get("R", 0.0)) * f["text_density"]
+        + float(vark_scores.get("K", 0.0)) * (0.7 * f["interactivity_level"] + 0.3 * f["hands_on_score"])
+    )
+    if use_context:
+        ctx = profile.get("session_context_features") or {}
+        fatigue = float(ctx.get("fatigue_level", 0.3))
+        # Penalize high-difficulty items in high-fatigue sessions.
+        score -= 0.15 * fatigue * f["difficulty"]
+    return float(score)
 
 def build_text_profile_from_viewed_items(
     viewed_item_ids: List[str],
@@ -150,11 +211,11 @@ def build_text_profile_from_viewed_items(
     return "Recently viewed interests: " + " | ".join(parts)
 
 
-def build_user_profile_from_minimal(info: Dict):
+def build_user_profile_from_minimal(info: Dict, prior_mode: str = "prior_plus_context"):
 
     user_id = info.get("user_id", "")
     v = simulate_vark_quiz_responses(seed=user_id)
-    state = estimate_cognitive_state(
+    state = estimate_session_context(
         time_of_day=info.get("time_of_day"),
         session_length_min=info.get("session_len", 5),
         device=info.get("device", "desktop"),
@@ -191,13 +252,36 @@ def build_user_profile_from_minimal(info: Dict):
             else:
                 text_profile = f"Cold-start profile: {desc}"
 
+    prior_mode = (prior_mode or "prior_plus_context").strip().lower()
+    if prior_mode not in {"no_prior", "prior_only", "prior_plus_context"}:
+        prior_mode = "prior_plus_context"
+    if prior_mode == "no_prior":
+        preference_prior = {"vark_scores": {"V": 0.25, "A": 0.25, "R": 0.25, "K": 0.25}}
+    else:
+        preference_prior = {"vark_scores": v.get("scores", {"V": 0.25, "A": 0.25, "R": 0.25, "K": 0.25})}
+
+    session_context_features = {
+        "time_of_day": info.get("time_of_day"),
+        "session_length_min": info.get("session_len", 5),
+        "device_type": info.get("device", "desktop"),
+        "fatigue_level": 0.8 if state["status"] == "tired" else (0.2 if state["status"] == "fresh" else 0.4),
+    }
+    if prior_mode == "prior_only":
+        session_context_features = {"time_of_day": None, "session_length_min": None, "device_type": None, "fatigue_level": 0.4}
+    if prior_mode == "no_prior":
+        session_context_features = {"time_of_day": None, "session_length_min": None, "device_type": None, "fatigue_level": 0.4}
+
     profile = {
         "user_id": user_id,
         "goal": goal or "learn about topic X",
         "vark": vark,
+        "vark_scores": v.get("scores", {"V": 0.25, "A": 0.25, "R": 0.25, "K": 0.25}),
         "vark_answers": v["answers"],
         "max_complexity": state["max_complexity"],
-        "time_of_day": info.get("time_of_day"),
+        "time_of_day": session_context_features["time_of_day"],
+        "preference_prior_mode": prior_mode,
+        "preference_prior": preference_prior,
+        "session_context_features": session_context_features,
         "text_profile": text_profile,
     }
     return profile

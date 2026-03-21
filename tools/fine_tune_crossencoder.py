@@ -1,10 +1,13 @@
 import argparse
 import csv
 import json
+import random
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
-from sentence_transformers import CrossEncoder, InputExample, losses
+import numpy as np
+import torch
+from sentence_transformers import CrossEncoder, InputExample
 from torch.utils.data import DataLoader
 
 from src.rerank_llm import format_reranker_query, format_reranker_doc
@@ -193,8 +196,21 @@ def main():
     parser.add_argument("--neg-per-pos-ratio", type=float, default=1.0, help="Negatives per positive (1.0 = balanced).")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument("--lr", type=float, default=2e-5)
+    parser.add_argument("--weight-decay", type=float, default=0.01)
+    parser.add_argument("--scheduler", type=str, default="WarmupLinear", choices=["WarmupLinear", "WarmupCosine", "WarmupConstant"])
+    parser.add_argument("--optimizer", type=str, default="adamw", choices=["adamw", "sgd", "adafactor"])
+    parser.add_argument("--sgd-momentum", type=float, default=0.9)
+    parser.add_argument("--init-seed", type=int, default=42)
     parser.add_argument("--max-users", type=int, default=None, help="Cap users for hard neg retrieval (faster).")
+    parser.add_argument("--dry-run", action="store_true", help="Build dataset and print train config without fitting.")
     args = parser.parse_args()
+
+    random.seed(args.init_seed)
+    np.random.seed(args.init_seed)
+    torch.manual_seed(args.init_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.init_seed)
 
     items_meta = load_items_meta(args.items_csv)
     if not items_meta:
@@ -243,12 +259,34 @@ def main():
     print(f"Training examples: {len(examples)} (positives ~{sum(1 for e in examples if e.label == 1.0)}, negatives ~{sum(1 for e in examples if e.label == 0.0)})")
     train_dataloader = DataLoader(examples, shuffle=True, batch_size=args.batch_size)
     model = CrossEncoder(args.model_name, num_labels=1)
-    loss_fct = losses.BinaryCrossEntropyLoss(model)
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    optimizer_class = torch.optim.AdamW
+    optimizer_params = {"lr": args.lr}
+    if args.optimizer == "sgd":
+        optimizer_class = torch.optim.SGD
+        optimizer_params = {"lr": args.lr, "momentum": args.sgd_momentum}
+    elif args.optimizer == "adafactor":
+        try:
+            from transformers import Adafactor
+        except Exception as e:
+            raise SystemExit(f"Adafactor requested, but transformers.Adafactor unavailable: {e}")
+        optimizer_class = Adafactor
+        optimizer_params = {"lr": args.lr, "scale_parameter": False, "relative_step": False}
+
+    if args.dry_run:
+        print(
+            f"[DRY-RUN] optimizer={args.optimizer}, scheduler={args.scheduler}, "
+            f"lr={args.lr}, weight_decay={args.weight_decay}, init_seed={args.init_seed}, "
+            f"epochs={args.epochs}, batch_size={args.batch_size}, examples={len(examples)}"
+        )
+        return
     model.fit(
         train_dataloader=train_dataloader,
-        loss_fct=loss_fct,
         epochs=args.epochs,
+        optimizer_class=optimizer_class,
+        optimizer_params=optimizer_params,
+        scheduler=args.scheduler,
+        weight_decay=args.weight_decay,
         warmup_steps=min(500, int(0.1 * len(train_dataloader))),
         output_path=args.output_dir,
     )
