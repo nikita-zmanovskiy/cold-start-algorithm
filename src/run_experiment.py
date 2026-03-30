@@ -390,14 +390,19 @@ def run_experiment(
     
 
     results = {}
-    results_pre = {}          
+    results_pre = {}
     candidate_pools = {}
-    candidate_pools_post = {} 
+    candidate_pools_post = {}
     reranker_scores_all = {}
-    retrieval_metas = []  
-    user_times = []       
-    retrieval_times = []  
-    topk = config.get("topk", 10)
+    retrieval_metas = []
+    user_times = []
+    retrieval_times = []
+
+    topk = int(config.get("topk", 10) or 10)
+
+    pool_k = int(config.get("candidate_pool_size", 1000) or 1000)
+    pool_k = max(pool_k, 1000, topk)
+
     catalog_size = len(enriched)
     
     for user_real_id in selected_users:
@@ -504,7 +509,7 @@ def run_experiment(
                     recs = [{"item_id": c, "score": 0.0, "method": baseline_type} for c in candidates[:topk]]
                 results[uid] = recs
                 results_pre[uid] = recs
-                candidate_pools_post[uid] = candidates
+                candidate_pools[uid] = list(candidates[:pool_k])
                 
                 cand_set = set(str(x) for x in (candidates or []))
                 if gt_set and cand_set:
@@ -548,9 +553,9 @@ def run_experiment(
                     return [
                         {"item_id": str(it["item_id"]), "score": float(it.get("pop", 0) or 0), "reason": "popularity_fallback"}
                         for it in selected_items[:topk]
-                    ], [str(it["item_id"]) for it in sorted_items]
+                    ], [str(it["item_id"]) for it in sorted_items[:pool_k]]
 
-                # For users with no train items, use popularity directly (no warning)
+            
                 if not user_train:
                     fallback_recs, fallback_pool = _popularity_fallback_for_user()
                     results[uid] = fallback_recs
@@ -562,7 +567,7 @@ def run_experiment(
                         user_id=uid,
                         user_train_items=user_train,
                         item_ids_candidate=item_ids_catalog,
-                        k=len(item_ids_catalog),
+                        k=pool_k,
                     )
                     if not full_ranking:
                         fallback_recs, fallback_pool = _popularity_fallback_for_user()
@@ -570,7 +575,7 @@ def run_experiment(
                         candidate_pools[uid] = fallback_pool
                     else:
                         results[uid] = full_ranking[:topk]
-                        candidate_pools[uid] = [r["item_id"] for r in full_ranking]
+                        candidate_pools[uid] = [str(r["item_id"]) for r in full_ranking[:pool_k]]
                 results_pre[uid] = results[uid]
                 candidate_pools_post[uid] = candidate_pools[uid]
             else:
@@ -611,7 +616,7 @@ def run_experiment(
                         for it in selected_items[:topk]
                     ]
                     results[uid] = recs
-                    candidate_pools[uid] = [str(it["item_id"]) for it in sorted_items]
+                    candidate_pools[uid] = [str(it["item_id"]) for it in sorted_items[:pool_k]]
                 else:
                     recs = get_baseline_recommendations(
                         baseline_type=baseline_type,
@@ -628,7 +633,7 @@ def run_experiment(
                     user_rng = random.Random(per_user_seed(seed, uid))
                     shuffled_items = enriched.copy()
                     user_rng.shuffle(shuffled_items)
-                    candidate_pools[uid] = [str(it["item_id"]) for it in shuffled_items]
+                    candidate_pools[uid] = [str(it["item_id"]) for it in shuffled_items[:pool_k]]
                 elif baseline_type == "popularity":
                     pass  # already set above
                 elif baseline_type == "embedding_cosine":
@@ -655,13 +660,13 @@ def run_experiment(
                             cosine_sim = 0.0
                         similarities.append((item_id, float(cosine_sim)))
                     similarities.sort(key=lambda x: x[1], reverse=True)
-                    candidate_pools[uid] = [item_id for item_id, _ in similarities]
+                    candidate_pools[uid] = [item_id for item_id, _ in similarities[:pool_k]]
                 elif baseline_type == "oracle_upper_bound":
                     gt_items = [str(it["item_id"]) for it in enriched if str(it.get("item_id")) in gt_set]
                     non_gt_items = [str(it["item_id"]) for it in enriched if str(it.get("item_id")) not in gt_set]
-                    candidate_pools[uid] = gt_items + non_gt_items
+                    candidate_pools[uid] = (gt_items + non_gt_items)[:pool_k]
                 else:
-                    candidate_pools[uid] = [str(it["item_id"]) for it in enriched]
+                    candidate_pools[uid] = [str(it["item_id"]) for it in enriched[:pool_k]]
                 if not results[uid]:
                     logger.warning(
                         "Baseline %s produced empty top-k for user %s; using popularity fallback.",
@@ -676,7 +681,7 @@ def run_experiment(
                         for it in sorted_items[:topk]
                     ]
                     results[uid] = fallback
-                    candidate_pools[uid] = [str(it["item_id"]) for it in sorted_items]
+                    candidate_pools[uid] = [str(it["item_id"]) for it in sorted_items[:pool_k]]
                     candidate_pools_post[uid] = candidate_pools[uid]
                 results_pre[uid] = results[uid]
                 candidate_pools_post[uid] = candidate_pools[uid]
@@ -834,7 +839,7 @@ def run_experiment(
         else:
             reranked = candidates[:topk]
             results_pre[uid] = [{"item_id": str(x)} for x in candidates[:topk]]
-            candidate_pools_post[uid] = candidates
+            candidate_pools_post[uid] = list(candidates[:pool_k])
 
         norm = []
         if reranked is None:
@@ -1274,11 +1279,24 @@ def run_with_logging(
     )
     
   
+    save_pool_k = int(config.get("candidate_pool_size", 1000) if config else 1000)
+    save_pool_k = max(save_pool_k, 1000, int(config.get("topk", 10) if config else 10))
+
+    compact_candidate_pools = {
+        uid: (pool[:save_pool_k] if isinstance(pool, list) else pool)
+        for uid, pool in (candidate_pools or {}).items()
+    }
+
+    compact_candidate_pools_post = {
+        uid: (pool[:save_pool_k] if isinstance(pool, list) else pool)
+        for uid, pool in (candidate_pools_post or {}).items()
+    }
+
     results_to_save = {
         "results": results,
         "results_pre": results_pre,
-        "candidate_pools": candidate_pools,
-        "candidate_pools_post": candidate_pools_post,
+        "candidate_pools": compact_candidate_pools,
+        "candidate_pools_post": compact_candidate_pools_post,
         "rerank_times": rerank_times,
         "reranker_scores": reranker_scores_all,
         "ranked_list_contract": {
@@ -1288,6 +1306,7 @@ def run_with_logging(
             "candidate_pools_post": "post-rerank ranked pool (reranked subset + rest), used for recall@K_post",
         },
     }
+
     save_json(results_dir / f"{run_id}.json", results_to_save)
     
 
