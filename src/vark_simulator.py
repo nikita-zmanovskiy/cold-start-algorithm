@@ -72,15 +72,15 @@ def score_vark_from_answers(answers):
     return dom
 
 def simulate_vark_quiz_responses(seed=None):
-    import random
-
-    if isinstance(seed, str):
-        seed_int = hash(seed) % (2**31)
-        random.seed(seed_int)
-    else:
-        random.seed(seed)
+    """
+    Per-user pseudo-random V/A/R/K responses. Uses a local RNG seeded from
+    `seed` (typically user_id) so outputs differ across users and do not
+    mutate the global `random` module (which would break other baselines).
+    """
+    seed_key = f"vark_quiz:{seed!s}"
+    rng = random.Random(_stable_seed(seed_key))
     choices = ['visual','auditory','reading','kinesthetic']
-    answers = [random.choice(choices) for _ in range(16)]
+    answers = [rng.choice(choices) for _ in range(16)]
     dom = score_vark_from_answers(answers)
     c = Counter(answers)
     total = max(1, len(answers))

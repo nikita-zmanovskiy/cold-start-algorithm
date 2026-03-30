@@ -9,6 +9,11 @@ from .config import EMBED_MODEL, EMBEDDING_MAP, EMBEDDINGS_NPY
 
 
 def random_baseline(items_list: List[Dict], k: int = 10, seed: int = None) -> List[Dict]:
+    """
+    Uniform random top-k from the catalog. If ``seed`` is fixed for all users,
+    every user gets the same recommendation list — pass a per-user sub-seed
+    (e.g. ``utils.per_user_seed(global_seed, user_id)``) when evaluating many users.
+    """
     if len(items_list) < k:
         k = len(items_list)
 
@@ -120,7 +125,7 @@ def random_in_candidate_pool_baseline(
     k: int = 10,
     seed: int = None
 ) -> List[Dict]:
-   
+    """Same as ``random_baseline``: use a per-user seed when ``seed`` is not None."""
     if len(candidate_pool) < k:
         k = len(candidate_pool)
     

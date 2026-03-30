@@ -1,4 +1,5 @@
 
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -30,6 +31,18 @@ def load_json(path):
 def set_seed(seed=42):
     random.seed(seed)
     np.random.seed(seed)
+
+
+def per_user_seed(global_seed: int, uid) -> int:
+    """
+    Deterministic per-user sub-seed (reproducible across runs/machines).
+    Use for random baselines so each user gets a different sample while the
+    experiment remains reproducible for a fixed global_seed.
+    """
+    uid_s = str(uid) if uid is not None else ""
+    h = hashlib.md5(f"{int(global_seed)}:{uid_s}".encode("utf-8")).hexdigest()
+    # Keep in positive 31-bit range for Random / legacy consumers
+    return int(h[:8], 16) & 0x7FFFFFFF
 
 
 _EMBEDDERS = {}  # model_name -> SentenceTransformer

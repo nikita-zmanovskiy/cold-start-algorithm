@@ -4,7 +4,7 @@ import random
 import time
 from .evaluation_config import get_eval_paths
 from pathlib import Path
-from .utils import logger, set_seed, save_json
+from .utils import logger, set_seed, save_json, per_user_seed
 from .preprocess import run_all
 from .llm_enrich import LLMEnricher, load_items_from_csv
 from .embeddings import build_embeddings, load_embeddings
@@ -496,7 +496,7 @@ def run_experiment(
                         user_profile=profile,
                         items_list=enriched,
                         k=topk,
-                        seed=seed,
+                        seed=per_user_seed(seed, uid),
                         candidate_pool=candidates
                     )
                 else:
@@ -620,12 +620,12 @@ def run_experiment(
                         k=topk,
                         embeddings=emb if baseline_type == "embedding_cosine" else None,
                         id2idx=id2idx if baseline_type == "embedding_cosine" else None,
-                        seed=seed
+                        seed=per_user_seed(seed, uid) if baseline_type == "random" else seed,
                     )
                     results[uid] = recs
-            
+                
                 if baseline_type == "random":
-                    user_rng = random.Random(seed + hash(uid) % 1000000)
+                    user_rng = random.Random(per_user_seed(seed, uid))
                     shuffled_items = enriched.copy()
                     user_rng.shuffle(shuffled_items)
                     candidate_pools[uid] = [str(it["item_id"]) for it in shuffled_items]
